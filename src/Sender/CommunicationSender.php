@@ -3,8 +3,10 @@ namespace Pyncer\Snyppet\Communication\Sender;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
-use Pyncer\Snyppet\Communication\Message\EmailMessage;
-use Pyncer\Snyppet\Communication\Message\SmsMessage;
+use Pyncer\Snyppet\Communication\CommunicationType;
+use Pyncer\Snyppet\Communication\Exception\SenderException;
+use Pyncer\Snyppet\Communication\Exception\SenderExceptionCode;
+use Pyncer\Snyppet\Communication\Message\MessageInterface;
 use Pyncer\Snyppet\Communication\Sender\SenderProviderInterface;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
@@ -14,8 +16,7 @@ use Pyncer\Snyppet\Communication\Table\Communication\GroupEmail\GroupEmailModel;
 use Pyncer\Snyppet\Communication\Table\Communication\Queue\QueueMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\Queue\QueueMapperQuery;
 use Pyncer\Snyppet\Communication\Table\Communication\Queue\QueueModel;
-use Pyncer\Snyppet\Communication\Transport\EmailTransportInterface;
-use Pyncer\Snyppet\Communication\Transport\SmsTransportInterface;
+use Pyncer\Snyppet\Communication\Transport\TransportInterface;
 use Pyncer\Snyppet\Content\Table\Content\ContentMapper;
 use Pyncer\Snyppet\SnyppetManager;
 
@@ -63,8 +64,30 @@ class CommunicationSender
                 $organizationId,
             );
 
-            $emailTransport = $this->senderProvider->getEmailTransport($organizationId);
-            $emailMessage = $this->senderProvider->getEmailMessage($contentModel);
+            $emailMessage = $this->senderProvider->getMessage(
+                $contentModel,
+                CommunicationType::EMAIL,
+                $organizationId,
+            );
+
+            if ($emailMessage === null) {
+                throw new SenderException(
+                    'Sender provider returned no email message.'
+                    SenderExceptionCode::MESSAGE->value,
+                );
+            }
+
+            $emailTransport = $this->senderProvider->getTransport(
+                CommunicationType::EMAIL,
+                $organizationId,
+            );
+
+            if ($emailTransport === null) {
+                throw new SenderException(
+                    'Sender provider returned no email transport.'
+                    SenderExceptionCode::TRANSPORT->value,
+                );
+            }
 
             $groupEmailMapper = new GroupEmailMapper($this->connection);
             $groupEmailMapperQuery = new GroupEmailMapperQuery($this->connection);
@@ -103,8 +126,30 @@ class CommunicationSender
                 $organizationId,
             );
 
-            $smsTransport = $this->senderProvider->getSmsTransport($communicationModel);
-            $smsMessage = $this->senderProvider->getSmsMessage($communicationModel);
+            $smsMessage = $this->senderProvider->getMessage(
+                $contentModel,
+                CommunicationType::SMS,
+                $organizationId,
+            );
+
+            if ($smsMessage === null) {
+                throw new SenderException(
+                    'Sender provider returned no SMS message.'
+                    SenderExceptionCode::MESSAGE->value,
+                );
+            }
+
+            $smsTransport = $this->senderProvider->getTransport(
+                CommunicationType::SMS,
+                $organizationId,
+            );
+
+            if ($smsTransport === null) {
+                throw new SenderException(
+                    'Sender provider returned no SMS transport.'
+                    SenderExceptionCode::TRANSPORT->value,
+                );
+            }
         }
 
         $queueMapper = new QueueMapper($this->connection);
@@ -119,19 +164,31 @@ class CommunicationSender
         );
 
         foreach ($result as $queueModel) {
+            $contactProfileId = $this->connection->select('communication__queue__contact')
+                ->columns('contact_profile_id')
+                ->where([
+                    'communication_queue_id' => $queueModel->getId(),
+                ])
+                ->value();
+
             if ($communicationModel->getType() === 'email' ||
                 $communicationModel->getType() === null
             ) {
                 if ($queueModel->getEmail() !== null) {
+                    $contactProfileData = $this->senderProvider->getContactProfileData(
+                        CommunicationType::EMAIL,
+                        $contactProfileId,
+                    );
+
                     $thsi->sendQueueEmail(
                         $queueModel,
                         $emailTransport,
                         $emailMessage,
-                        $data,
+                        [...$emailData, ...$contactProfileData],
                     )
 
-                    $groupEmailModel->setStatus(QueueStatus::SENT);
-                    $groupEmailMapper->update($groupEmailModel);
+                    $queueModel->setStatus(QueueStatus::SENT);
+                    $queueMapper->update($queueModel);
                 }
             }
 
@@ -140,11 +197,19 @@ class CommunicationSender
             ) {
                 if ($queueModel->getPhone() !== null) {
                     $thsi->sendQueueSms(
+                        $contactProfileData = $this->senderProvider->getContactProfileData(
+                            CommunicationType::SMS,
+                            $contactProfileId,
+                        );
+
                         $queueModel,
                         $smsTransport,
                         $smsMessage,
-                        $data,
+                        [...$smsData, ...$contactProfileData],
                     )
+
+                    $queueModel->setStatus(QueueStatus::SENT);
+                    $queueMapper->update($queueModel);
                 }
             }
         }
@@ -165,8 +230,8 @@ class CommunicationSender
 
     protected function sendGroupEmail(
         GroupEmailModel $groupEmailModel,
-        EmailTransportInterface $emailTransport,
-        EmailMessage $emailMessage,
+        TransportInterface $transport,
+        MessageInterface $message,
         array $data,
     ): void
     {
@@ -183,9 +248,9 @@ class CommunicationSender
             $bccEmails = explode_emails($bccEmails);
         }
 
-        $emailTransport->send(
+        $transport->send(
             $toEmails,
-            $emailMessage,
+            $message,
             $data,
             [
                 'cc_emails' => $ccEmails,
@@ -196,28 +261,28 @@ class CommunicationSender
 
     protected function sendQueueEmail(
         QueueModel $queueModel,
-        EmailTransportInterface $emailTransport,
-        EmailMessage $emailMessage,
+        TransportInterface $transport,
+        MessageInterface $message,
         array $data,
     ): void
     {
-        $emailTransport->send(
-            $queueModel->getEmail(),
-            $emailMessage,
+        $transport->send(
+            [$queueModel->getEmail(), $queueModel->getName()],
+            $message,
             $data,
         );
     }
 
     protected function sendQueueSms(
         QueueModel $queueModel,
-        SmsTransportInterface $smsTransport,
-        SmsMessage $smsMessage,
+        TransportInterface $transport,
+        MessageInterface $message,
         array $data = [],
     ): void
     {
         $smsTransport->send(
-            $queueModel->getEmail(),
-            $smsMessage,
+            [$queueModel->getPhone(), $queueModel->getName()],
+            $message,
             $data,
         );
     }

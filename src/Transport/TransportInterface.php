@@ -1,11 +1,11 @@
 <?php
 namespace Pyncer\Snyppet\Communication\Transport;
 
-interface SmsTransportInterface
+interface TransportInterface
 {
     public function send(
         string|array $to,
-        SmsMessage $message,
+        MessageInterface $message,
         array $data = [],
         array $params = [],
     ): void;

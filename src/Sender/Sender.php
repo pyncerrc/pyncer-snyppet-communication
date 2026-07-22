@@ -3,8 +3,9 @@ namespace Pyncer\Snyppet\Communication\Sender;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationType;
-use Pyncer\Snyppet\Communication\Message\EmailMessage;
-use Pyncer\Snyppet\Communication\Message\SmsMessage;
+use Pyncer\Snyppet\Communication\Exception\SenderException;
+use Pyncer\Snyppet\Communication\Exception\SenderExceptionCode;
+use Pyncer\Snyppet\Communication\Message\MessageInterface;
 use Pyncer\Snyppet\Communication\Sender\SenderProviderInterface;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 
@@ -31,15 +32,34 @@ class Sender
             ...$data,
         ];
 
-        $emailMessage = $this->senderProvider->getEmailMessage($contentModel);
-
-        $emailTransport = $this->senderProvider->getEmailTransport(
+        $message = $this->senderProvider->getMessage(
+            $contentModel,
+            CommunicationType::EMAIL,
             $this->organizationId,
         );
 
-        $emailTransport->send(
+        if ($message === null) {
+            throw new SenderException(
+                'Sender provider returned no email message.'
+                SenderExceptionCode::MESSAGE->value,
+            );
+        }
+
+        $transport = $this->senderProvider->getTransport(
+            CommunicationType::EMAIL,
+            $this->organizationId,
+        );
+
+        if ($transport === null) {
+            throw new SenderException(
+                'Sender provider returned no email transport.'
+                SenderExceptionCode::TRANSPORT->value,
+            );
+        }
+
+        $transport->send(
             $to,
-            $emailMessage,
+            $message,
             $data,
             $params,
         );
@@ -60,15 +80,34 @@ class Sender
             ...$data,
         ];
 
-        $smsMessage = $this->senderProvider->getSmsMessage($contentModel);
-
-        $smsTransport = $this->senderProvider->getSmsTransport(
+        $message = $this->senderProvider->getMessage(
+            $contentModel,
+            CommunicationType::SMS,
             $this->organizationId,
         );
 
-        $smsTransport->send(
+        if ($message === null) {
+            throw new SenderException(
+                'Sender provider returned no SMS message.'
+                SenderExceptionCode::MESSAGE->value,
+            );
+        }
+
+        $transport = $this->senderProvider->getTransport(
+            CommunicationType::SMS,
+            $this->organizationId,
+        );
+
+        if ($transport === null) {
+            throw new SenderException(
+                'Sender provider returned no SMS transport.'
+                SenderExceptionCode::TRANSPORT->value,
+            );
+        }
+
+        $transport->send(
             $to,
-            $smsMessage,
+            $message,
             $data,
             $params,
         );

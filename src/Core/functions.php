@@ -62,7 +62,7 @@ function text_to_html(string $text): string
     return trim($html);
 }
 
-private function html_to_text(string $html): string
+function html_to_text(string $html): string
 {
     $html = trim($html);
 

@@ -1,10 +1,11 @@
 <?php
-namespace Pyncer\Snyppet\Communication\Message;
+namespace Pyncer\Snyppet\Communication\Message\Email;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Exception\InvalidArgumentException;
 use Pyncer\Snyppet\Communication\Exception\MessageException;
 use Pyncer\Snyppet\Communication\Exception\MessageExceptionCode;
+use Pyncer\Snyppet\Communication\Message\Email\EmailMessageInterface;
 use Pyncer\Snyppet\Content\Table\Content\ContentMapper;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 use Pyncer\Snyppet\Content\Table\Content\DataManager as ContentDataManager;
@@ -14,7 +15,7 @@ use function Pyncer\he as pyncer_he;
 use function Pyncer\Snyppet\Communication\html_to_text;
 use function Pyncer\Snyppet\Communication\text_to_html;
 
-class EmailMessage
+class EmailMessage implements EmailMessageInterface
 {
     protected array $attachments = [];
 
@@ -43,6 +44,10 @@ class EmailMessage
 
         return $this;
     }
+    public function getAttachments(): array
+    {
+        return $this->attachments;
+    }
 
     public function getSubject(): string
     {
@@ -58,6 +63,18 @@ class EmailMessage
 
         $this->subject = $value;
         return $this;
+    }
+
+    public function getBody(): null|string|array:
+    {
+        if ($this->htmlBody === null && $this->textBody === null) {
+            return null;
+        }
+
+        return [
+            'html' => $this->htmlBody,
+            'text' => $this->textBody,
+        ];
     }
 
     public function getHtmlBody(bool $convert = false): ?string:
@@ -104,7 +121,7 @@ class EmailMessage
         return $this;
     }
 
-    public function getFromEmail(): string
+    public function getFromEmail(): ?string
     {
         return $this->fromEmail;
     }
@@ -119,7 +136,7 @@ class EmailMessage
         return $this;
     }
 
-    public function getFromName(): string
+    public function getFromName(): ?string
     {
         return $this->fromName;
     }
@@ -134,6 +151,14 @@ class EmailMessage
         return $this;
     }
 
+    public function getFrom(): null|string|array
+    {
+        if ($this->fromEmail === null) {
+            return null;
+        }
+
+        return [$this->fromEmail, $this->fromName];
+    }
     public function setFrom(?string $email, ?string $name = null): static
     {
         if ($email === '') {
@@ -151,7 +176,7 @@ class EmailMessage
         return $this;
     }
 
-    public function getReplyToEmail(): string
+    public function getReplyToEmail(): ?string
     {
         return $this->replyToEmail;
     }
@@ -166,7 +191,7 @@ class EmailMessage
         return $this;
     }
 
-    public function getReplyToName(): string
+    public function getReplyToName(): ?string
     {
         return $this->replyToName;
     }
@@ -181,6 +206,14 @@ class EmailMessage
         return $this;
     }
 
+    public function getReplyTo(): null|string|array
+    {
+        if ($this->replyToEmail === null) {
+            return null;
+        }
+
+        return [$this->replyToEmail, $this->replyToName];
+    }
     public function setReplyTo(?string $email ?string $name = null): static
     {
         if ($email === '') {
@@ -277,7 +310,7 @@ class EmailMessage
 
         if ($body !== null && $htmlBody === null && $textBody === null) {
             // TODO: Support markdown
-            if ($type === 'text/plaintext') {
+            if ($type === 'text/plain') {
                 $textBody = $body;
             } else {
                 $htmlBody = $body;

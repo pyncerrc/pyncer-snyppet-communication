@@ -28,7 +28,7 @@ class Install extends AbstractInstall
                 ->updateAction(ReferentialAction::CASCADE)
             ->execute();
 
-        $this->connection->createTable('communication__group_email');
+        $this->connection->createTable('communication__group_email')
             ->serial('id')
             ->int('communication_id', IntSize::BIG)->null()->index()
             ->text('emails', TextSize::MEDIUM)
@@ -79,8 +79,8 @@ class Install extends AbstractInstall
     public function getRequired(): array
     {
         return [
-            'content' => '*'
-            'task' => '*'
+            'content' => '*',
+            'task' => '*',
         ];
     }
 
@@ -91,6 +91,7 @@ class Install extends AbstractInstall
     {
         switch ($snyppetAlias) {
             case 'contact':
+            case 'organization':
                 return true;
         }
 
@@ -133,9 +134,9 @@ class Install extends AbstractInstall
             ->serial('id')
             ->int('communication_queue_id', IntSize::BIG)->index()
             ->int('contact_id', IntSize::BIG)->index()
-            ->index('#unique', 'communication_queue_id', 'contact_id')->unique()
+            ->index('#unique', 'communication_queue_id')->unique()
             ->foreignKey(null, 'communication_queue_id')
-                ->references('communication_queue', 'id')
+                ->references('communication__queue', 'id')
                 ->deleteAction(ReferentialAction::CASCADE)
                 ->updateAction(ReferentialAction::CASCADE)
             ->foreignKey(null, 'contact_id')

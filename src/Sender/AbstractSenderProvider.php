@@ -3,8 +3,9 @@ namespace Pyncer\Snyppet\Communication\Sender;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationType;
-use Pyncer\Snyppet\Communication\Message\EmailMessage;
-use Pyncer\Snyppet\Communication\Message\SmsMessage;
+use Pyncer\Snyppet\Communication\Message\Email\EmailMessage;
+use Pyncer\Snyppet\Communication\Message\MessageInterface;
+use Pyncer\Snyppet\Communication\Message\Sms\SmsMessage;
 use Pyncer\Snyppet\Communication\Sender\SenderProviderInterface;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 
@@ -14,20 +15,25 @@ abstract class AbstractSenderProvider implements SenderProviderInterface
         protected ConnectionInterface $connection,
     ) {}
 
-    public function getEmailMessage(ContentModel $contentModel): EmailMessage
+    public function getMessage(
+        ContentModel $contentModel,
+        CommunicationType $type,
+        ?int $organizationId = null,
+    ): ?MessageInterface
     {
-        return EmailMessage::fromContentModel(
-            $this->connection,
-            $contenModel,
-        );
-    }
+        if ($type === CommunicationType::EMAIL) {
+            return EmailMessage::fromContentModel(
+                $this->connection,
+                $contenModel,
+            );
+        } elseif ($type === CommunicationType::SMS) {
+            return SmsMessage::fromContentModel(
+                $this->connection,
+                $contenModel,
+            );
+        }
 
-    public function getSmsMessage(ContentModel $contentModel): SmsMessage
-    {
-        return SmsMessage::fromContentModel(
-            $this->connection,
-            $contenModel,
-        );
+        return null;
     }
 
     public function getData(

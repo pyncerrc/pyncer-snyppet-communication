@@ -89,32 +89,61 @@ function clean_emails(string|array $emails): null|string|array
 
     $rule = new EmailRule();
 
-    foreach ($emails as $value) {
-        if (!is_string($value)) {
-            $value = explode_email($value);
-        } elseif (!is_array($value) || !$value) {
-            continue;
-        } else {
-            $value = [
-                trim(strval($value[0])),
-                trim(strval($value[1] ?? '')),
-            ];
+    if (array_is_list($emails)) {
+        foreach ($emails as $value) {
+            if (is_string($value)) {
+                $value = explode_email($value);
+            } elseif (!is_array($value) || !$value) {
+                continue;
+            } else {
+                $value = [
+                    trim(strval($value[0])),
+                    trim(strval($value[1] ?? '')),
+                ];
 
-            if ($value[1] === '') {
-                $value[1] = null;
+                if ($value[1] === '') {
+                    $value[1] = null;
+                }
             }
+
+            if ($value[0] === '' ||
+                !$rule->isValid($value[0])
+            ) {
+                continue;
+            }
+
+            $value[0] = $rule->clean($value[0]);
+
+            $result[] = $value;
         }
+    } else {
+        foreach ($emails as $email => $name) {
+            if (is_int($email)) {
+                $value = [
+                    trim(strval($name)),
+                    null,
+                ];
+            } else {
+                $value = [
+                    trim(strval($email)),
+                    trim(strval($name)),
+                ];
 
-        if ($value[0] === '' ||
-            !$rule->isValid($value[0])
-        ) {
-            continue;
+                if ($value[1] === '') {
+                    $value[1] = null;
+                }
+            }
+
+            if ($value[0] === '' ||
+                !$rule->isValid($value[0])
+            ) {
+                continue;
+            }
+
+            $value[0] = $rule->clean($value[0]);
+
+            $result[] = $value;
         }
-
-        $email = $rule->clean($value[0]);
-        $name  = $value[1];
-
-        $result[] = [$email, $name];
     }
 
     if ($isString) {

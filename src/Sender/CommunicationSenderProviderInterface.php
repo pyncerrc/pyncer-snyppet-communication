@@ -6,8 +6,8 @@ use Pyncer\Snyppet\Communication\Sender\SenderProviderInterface;
 
 interface CommunicationSenderProviderInterface extends SenderProviderInterface
 {
-    public function getContactData(
+    public function getContactProfileData(
         CommunicationType $type,
-        int $contactId
+        ?int $contactProfileId = null,
     ): array;
 }

@@ -8,9 +8,9 @@ use Pyncer\Snyppet\Communication\Sender\CommunicationSenderProviderInterface;
 abstract class AbstractCommunicationSenderProvider extends AbstractSenderProvider implements
     CommunicationSenderProviderInterface
 {
-    public function getContactData(
+    public function getContactProfileData(
         CommunicationType $type,
-        int $contactId,
+        ?int $contactProfileId = null,
     ): array
     {
         return [];

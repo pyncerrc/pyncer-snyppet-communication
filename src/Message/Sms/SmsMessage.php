@@ -1,9 +1,10 @@
 <?php
-namespace Pyncer\Snyppet\Communication\Message;
+namespace Pyncer\Snyppet\Communication\Message\Sms;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\Exception\MessageException;
 use Pyncer\Snyppet\Communication\Exception\MessageExceptionCode;
+use Pyncer\Snyppet\Communication\Message\SmsMessageInterface;
 use Pyncer\Snyppet\Content\Table\Content\ContentMapper;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 use Pyncer\Snyppet\Content\Table\Content\DataManager as ContentDataManager;
@@ -12,18 +13,16 @@ use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 use function Pyncer\he as pyncer_he;
 use function Pyncer\Snyppet\Communication\html_to_text;
 
-class SmsMessage
+class SmsMessage implements SmsMessageInterface
 {
-    protected array $attachments = [];
-
     public function __construct(
-        protected ?string $body = null,
+        protected ?string $textBody = null,
         protected ?string $fromPhone = null,
     ) {}
 
-    public function getBody(): ?string:
+    public function getBody(): null|string|array:
     {
-        return $this->body;
+        return $this->textBody;
     }
     public function setBody(?string $value): static
     {
@@ -31,16 +30,17 @@ class SmsMessage
             $value = null;
         }
 
-        $this->body = $value;
+        $this->textBody = $value;
 
         return $this;
     }
 
-    public function getFromPhone(): string
+    public function getFrom(): null|string|array
     {
         return $this->fromPhone;
     }
-    public function setFromPhone(?string $value): static
+
+    public function setFrom(?string $value): static
     {
         if (trim($value ?? '') == '') {
             $value = null;
@@ -107,7 +107,7 @@ class SmsMessage
         }
 
         $message = new SmsMessage(
-            body: $htmlBody,
+            textBody: $textBody,
             fromPhone: $fromPhone,
         );
 
