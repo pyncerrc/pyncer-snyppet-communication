@@ -9,22 +9,29 @@ trait ReplaceMessageDataTrait
         bool $isHtml = false,
     ): string
     {
-        foreach ($data as $key => $value) {
-            if ($isHtml) {
-                // TODO:
-                $message = str_replace(
-                    '[[' . $key . ']]',
-                    pyncer_he($value ?? ''),
-                    $message
-                );
-            } else {
-                $message = str_replace(
-                    '[[' . $key . ']]',
-                    $value ?? '',
-                    $message
-                );
-            }
-        }
+        // Replace [[key]] and [[key|default]] placeholders
+        $message = preg_replace_callback(
+            '/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/',
+            function (array $matches) use ($data, $isHtml) {
+                $key = trim($matches[1]);
+                $default = trim($matches[2] ?? '');
+
+                $value = $data[$key] ?? $default;
+
+                if (is_array($value)) {
+                    $replacement = $isHtml ?
+                        ($value['html'] ?? $default) :
+                        ($value['text'] ?? $default);
+                } elseif ($isHtml) {
+                    $replacement = pyncer_he($value);
+                } else {
+                    $replacement = $value;
+                }
+
+                return $replacement;
+            },
+            $message
+        );
 
         return $message;
     }
