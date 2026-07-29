@@ -2,15 +2,17 @@
 namespace Pyncer\Snyppet\Communication\Transport\Email;
 
 use Exception;
+use PHPMailer\PHPMailer\PHPMailer;
 use Pyncer\Snyppet\Communication\Exception\TransportException;
 use Pyncer\Snyppet\Communication\Exception\TransportExceptionCode;
+use Pyncer\Snyppet\Communication\Message\Email\EmailMessageInterface;
 use Pyncer\Snyppet\Communication\Message\MessageInterface;
 use Pyncer\Snyppet\Communication\Transport\ReplaceMessageDataTrait;
 use Pyncer\Snyppet\Communication\Transport\TransportInterface;
 
-use function Pyncer\Snyppet\Communicatoin\Email\explode_email;
-use function Pyncer\Snyppet\Communicatoin\Email\explode_emails;
-use function Pyncer\Snyppet\Communicatoin\Email\clean_emails;
+use function Pyncer\Snyppet\Communication\Email\explode_email;
+use function Pyncer\Snyppet\Communication\Email\explode_emails;
+use function Pyncer\Snyppet\Communication\Email\clean_emails;
 
 class SmtpTransport implements TransportInterface
 {
@@ -34,7 +36,6 @@ class SmtpTransport implements TransportInterface
             throw new TransportException(
                 'Expected email message.',
                 TransportExceptionCode::MESSAGE->value,
-                $e,
             );
         }
 
@@ -70,15 +71,15 @@ class SmtpTransport implements TransportInterface
 
         $body = $message->getBody();
         if ($body !== null) {
-            if ($body['html'] ?? null !== null) {
+            if ($body['text/html'] ?? null !== null) {
                 $mailer->isHTML(true);
-                $mailer->Body = $this->replaceMessageData($body['html'], $data, true);
+                $mailer->Body = $this->replaceMessageData($body['text/html'], $data, 'text/html');
 
-                if ($body['text'] ?? null !== null) {
-                    $mailer->AltBody = $this->replaceMessageData($body['text'], $data);
+                if ($body['text/plain'] ?? null !== null) {
+                    $mailer->AltBody = $this->replaceMessageData($body['text/plain'], $data);
                 }
-            } elseif ($body['text'] ?? null !== null) {
-                $mailer->Body = $this->replaceMessageData($body['text'], $data);
+            } elseif ($body['text/plain'] ?? null !== null) {
+                $mailer->Body = $this->replaceMessageData($body['text/plain'], $data);
             }
         }
 

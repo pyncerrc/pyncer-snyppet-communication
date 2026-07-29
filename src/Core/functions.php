@@ -12,7 +12,7 @@ function is_html(string $value): bool
         preg_match('/&[a-z]+;|&#\d+;/', $value);
 }
 
-function text_to_html(string $text): string
+function plain_to_html(string $text): string
 {
     $text = trim($text);
 
@@ -62,7 +62,7 @@ function text_to_html(string $text): string
     return trim($html);
 }
 
-function html_to_text(string $html): string
+function html_to_plain(string $html): string
 {
     $html = trim($html);
 

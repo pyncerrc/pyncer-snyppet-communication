@@ -12,8 +12,8 @@ use Pyncer\Snyppet\Content\Table\Content\DataManager as ContentDataManager;
 use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 
 use function Pyncer\he as pyncer_he;
-use function Pyncer\Snyppet\Communication\html_to_text;
-use function Pyncer\Snyppet\Communication\text_to_html;
+use function Pyncer\Snyppet\Communication\html_to_plain;
+use function Pyncer\Snyppet\Communication\plain_to_html;
 
 class EmailMessage implements EmailMessageInterface
 {
@@ -22,7 +22,7 @@ class EmailMessage implements EmailMessageInterface
     public function __construct(
         protected string $subject,
         protected ?string $htmlBody = null,
-        protected ?string $textBody = null,
+        protected ?string $plainBody = null,
         protected ?string $fromEmail = null,
         protected ?string $fromName = null,
         protected ?string $replyToEmail = null,
@@ -65,25 +65,25 @@ class EmailMessage implements EmailMessageInterface
         return $this;
     }
 
-    public function getBody(): null|string|array:
+    public function getBody(): null|string|array
     {
-        if ($this->htmlBody === null && $this->textBody === null) {
+        if ($this->htmlBody === null && $this->plainBody === null) {
             return null;
         }
 
         return [
-            'html' => $this->htmlBody,
-            'text' => $this->textBody,
+            'text/html' => $this->htmlBody,
+            'text/plain' => $this->plainBody,
         ];
     }
 
-    public function getHtmlBody(bool $convert = false): ?string:
+    public function getHtmlBody(bool $convert = false): ?string
     {
         if ($this->htmlBody === null &&
-            $this->textBody !== null &&
+            $this->plainBody !== null &&
             $convert
         ) {
-            return text_to_html($this->textBody);
+            return plain_to_html($this->plainBody);
         }
 
         return $this->htmlBody;
@@ -99,24 +99,24 @@ class EmailMessage implements EmailMessageInterface
         return $this;
     }
 
-    public function getTextBody(bool $convert = false): ?string
+    public function getPlainBody(bool $convert = false): ?string
     {
-        if ($this->textBody === null &&
+        if ($this->plainBody === null &&
             $this->htmlBody !== null &&
             $convert
         ) {
-            return html_to_text($this->htmlBody);
+            return html_to_plain($this->htmlBody);
         }
 
-        return $this->textBody;
+        return $this->plainBody;
     }
-    public function setTextBody(?string $value): static
+    public function setPlainBody(?string $value): static
     {
         if (trim($value) === '') {
             $value = null;
         }
 
-        $this->textBody = $value;
+        $this->plainBody = $value;
 
         return $this;
     }
@@ -214,7 +214,7 @@ class EmailMessage implements EmailMessageInterface
 
         return [$this->replyToEmail, $this->replyToName];
     }
-    public function setReplyTo(?string $email ?string $name = null): static
+    public function setReplyTo(?string $email, ?string $name = null): static
     {
         if ($email === '') {
             $email = null;
@@ -232,7 +232,7 @@ class EmailMessage implements EmailMessageInterface
     }
 
     public static function fromContentId(
-        ConnectionInterface, $connection,
+        ConnectionInterface $connection,
         int $contentId,
     ): EmailMessage
     {
@@ -241,7 +241,7 @@ class EmailMessage implements EmailMessageInterface
 
         if ($contendModel === null) {
             throw new MessageException(
-                'Communication content not found.'
+                'Communication content not found.',
                 MessageExceptionCode::CONTENT->value,
             );
         }
@@ -249,13 +249,13 @@ class EmailMessage implements EmailMessageInterface
         return static::fromContentModel($connection, $contentModel);
     }
     public static function fromContentModel(
-        ConnectionInterface, $connection,
+        ConnectionInterface $connection,
         ContentModel $contentModel,
     ): EmailMessage
     {
         if (!static::isValidEmailContent($contentModel)) {
             throw new MessageException(
-                'Communication content is invalid.'
+                'Communication content is invalid.',
                 MessageExceptionCode::CONTENT->value,
             );
         }
@@ -264,8 +264,8 @@ class EmailMessage implements EmailMessageInterface
         $dataManager->load(
             'body',
             'email_body',
-            'text_body',
-            'text_email_body',
+            'plain_body',
+            'plain_email_body',
             'html_body',
             'html_email_body',
         );
@@ -282,7 +282,7 @@ class EmailMessage implements EmailMessageInterface
         $subject = $valueManager->getString('subject', null);
         if ($subject === null) {
             throw new MessageException(
-                'Communication content has no subject.'
+                'Communication content has no subject.',
                 MessageExceptionCode::CONTENT->value,
             );
         }
@@ -304,14 +304,14 @@ class EmailMessage implements EmailMessageInterface
         $htmlEmailBody = $dataManager->getString('html_email_body', null);
         $htmlBody = $htmlEmailBody ?? $htmlBody;
 
-        $textBody = $dataManager->getString('text_body', null);
-        $textEmailBody = $dataManager->getString('text_email_body', null);
-        $textBody = $textEmailBody ?? $textBody;
+        $plainBody = $dataManager->getString('plain_body', null);
+        $textEmailBody = $dataManager->getString('plain_email_body', null);
+        $plainBody = $textEmailBody ?? $plainBody;
 
-        if ($body !== null && $htmlBody === null && $textBody === null) {
+        if ($body !== null && $htmlBody === null && $plainBody === null) {
             // TODO: Support markdown
             if ($type === 'text/plain') {
-                $textBody = $body;
+                $plainBody = $body;
             } else {
                 $htmlBody = $body;
             }
@@ -320,7 +320,7 @@ class EmailMessage implements EmailMessageInterface
         $message = new EmailMessage(
             subject: $subject,
             htmlBody: $htmlBody,
-            textBody: $textBody,
+            plainBody: $plainBody,
             fromEmail: $fromEmail,
             fromName: $fromName,
         );

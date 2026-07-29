@@ -1,7 +1,6 @@
 <?php
 namespace Pyncer\Snyppet\Communication\Sender;
 
-use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\SenderException;
 use Pyncer\Snyppet\Communication\Exception\SenderExceptionCode;
@@ -12,7 +11,6 @@ use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 class Sender
 {
     public function __construct(
-        protected ConnectionInterface $connection,
         protected SenderProviderInterface $senderProvider,
         protected ?int $organizationId = null,
     ) {}
@@ -40,7 +38,7 @@ class Sender
 
         if ($message === null) {
             throw new SenderException(
-                'Sender provider returned no email message.'
+                'Sender provider returned no email message.',
                 SenderExceptionCode::MESSAGE->value,
             );
         }
@@ -52,7 +50,7 @@ class Sender
 
         if ($transport === null) {
             throw new SenderException(
-                'Sender provider returned no email transport.'
+                'Sender provider returned no email transport.',
                 SenderExceptionCode::TRANSPORT->value,
             );
         }
@@ -88,7 +86,7 @@ class Sender
 
         if ($message === null) {
             throw new SenderException(
-                'Sender provider returned no SMS message.'
+                'Sender provider returned no SMS message.',
                 SenderExceptionCode::MESSAGE->value,
             );
         }
@@ -100,7 +98,7 @@ class Sender
 
         if ($transport === null) {
             throw new SenderException(
-                'Sender provider returned no SMS transport.'
+                'Sender provider returned no SMS transport.',
                 SenderExceptionCode::TRANSPORT->value,
             );
         }

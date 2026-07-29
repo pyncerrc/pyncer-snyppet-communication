@@ -11,7 +11,7 @@ use Pyncer\Snyppet\Content\Table\Content\DataManager as ContentDataManager;
 use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 
 use function Pyncer\he as pyncer_he;
-use function Pyncer\Snyppet\Communication\html_to_text;
+use function Pyncer\Snyppet\Communication\html_to_plain;
 
 class SmsMessage implements SmsMessageInterface
 {
@@ -83,8 +83,8 @@ class SmsMessage implements SmsMessageInterface
         $dataManager = new ContentDataManager($connection, $contentModel->getId());
         $dataManager->load(
             'body',
-            'text_body',
-            'text_sms_body',
+            'plain_body',
+            'plain_sms_body',
         );
 
         $valueManager = new ContentValueManager($connection, $contentModel->getId());
@@ -95,14 +95,14 @@ class SmsMessage implements SmsMessageInterface
         $fromPhone = $valueManager->getString('from_phone', null);
 
         $body = $dataManager->getString('body', null);
-        $textBody = $dataManager->getString('text_body', null);
+        $textBody = $dataManager->getString('plain_body', null);
         $textSmsBody = $dataManager->getString('text_sms_body', null);
 
         $textBody = $textSmsBody ?? $textBody;
 
         if ($body !== null && $textBody === null) {
             if ($dataManager->getType('body') === 'text/html') {
-                $textBody = html_to_text($body);
+                $textBody = html_to_plain($body);
             }
         }
 

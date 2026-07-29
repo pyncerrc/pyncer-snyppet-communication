@@ -1,6 +1,8 @@
 <?php
 namespace Pyncer\Snyppet\Communication\Transport;
 
+use Pyncer\Snyppet\Communication\Message\MessageInterface;
+
 interface TransportInterface
 {
     public function send(
