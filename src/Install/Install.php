@@ -19,7 +19,7 @@ class Install extends AbstractInstall
             ->dateTime('update_date_time')->null()->index()
             ->dateTime('schedule_date_time')->null()->index()
             ->enum('type', ['email', 'sms'])->null()->index()
-            ->enum('status', ['scheduled', 'queued', 'sending', 'sent', 'failed'])->default('scheduled')->index()
+            ->enum('status', ['scheduled', 'queued', 'sending', 'sent', 'failed', 'canceled'])->default('scheduled')->index()
             ->bool('enabled')->default(false)->index()
             ->index('#unique', 'uid')->unique()
             ->foreignKey(null, 'content_id')

@@ -7,5 +7,6 @@ enum CommunicationStatus: string
     case QUEUED = 'queued';
     case SENDING = 'sending';
     case SENT = 'sent';
-    case FAILED = 'FAILED';
+    case FAILED = 'failed';
+    case CANCELED = 'canceled';
 }

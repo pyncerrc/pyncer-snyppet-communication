@@ -8,18 +8,12 @@ use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 
-use function Pyncer\Snyppet\Communication\is_valid_communication_content;
-
 trait CommunicationStatusTrait
 {
     protected function getCommunicationStatus(
         ContentModel $contentModel,
-    ): bool
+    ): ?CommunicationStatus
     {
-        if (is_valid_communication_content($contentModel)) {
-            return 'draft';
-        }
-
         $connection = $this->get(ID::DATABASE);
 
         $communicationMapper = new CommunicationMapper($connection);
@@ -36,15 +30,15 @@ trait CommunicationStatusTrait
         );
 
         if ($model === null) {
-            return 'draft';
+            return null
         }
 
         if ($model->getStatus() === CommunicationStatus::SCHEDULED) {
             if ($model->getScheduleDateTime() === null) {
-                return 'queued';
+                return CommunicationStatus::QUEUED;
             }
         }
 
-        return $model->getStatus()->value;
+        return $model->getStatus();
     }
 }
