@@ -3,6 +3,8 @@ namespace Pyncer\Snyppet\Communication;
 
 use DOMDocument;
 use DOMXPath;
+use Pyncer\Snyppet\Communication\CommunicationType;
+use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 
 use function Pyncer\he as pyncer_he;
 
@@ -119,4 +121,39 @@ function html_to_plain(string $html): string
     $text = trim($text);
 
     return $text;
+}
+
+function is_valid_communication_content(
+    ContentModel $contentModel,
+    ?CommunicationType $communicationType = null,
+): bool
+{
+    if ($communicationType === CommunicationType::EMAIL) {
+        if ($contentModel->getType() !== 'email' &&
+            $contentModel->getType() !== 'communication'
+        ) {
+            return false;
+        }
+    } elseif ($communicationType === CommunicationType::SMS) {
+        if ($contentModel->getType() !== 'sms' &&
+            $contentModel->getType() !== 'communication'
+        ) {
+            return false;
+        }
+    } else {
+        if ($contentModel->getType() !== 'email' &&
+            $contentModel->getType() !== 'sms' &&
+            $contentModel->getType() !== 'communication'
+        ) {
+            return false;
+        }
+    }
+
+    if ($contentModel->getDeleted() ||
+        !$contentModel->getEnabled()
+    ) {
+        return false;
+    }
+
+    return true;
 }

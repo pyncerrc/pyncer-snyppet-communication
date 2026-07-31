@@ -28,7 +28,10 @@ class QueueTask extends AbstractTask
                 $query->getWhere()
                 ->compare('status', 'scheduled')
                 ->compare('enabled', true)
-                ->dateTimeCompare('schedule_date_time', pyncer_date_time(), '<=');
+                ->orOpen()
+                ->compare('schedule_date_time', null)
+                ->dateTimeCompare('schedule_date_time', pyncer_date_time(), '<=')
+                ->orClose();
             }
         );
 

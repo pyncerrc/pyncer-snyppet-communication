@@ -3,6 +3,7 @@ namespace Pyncer\Snyppet\Communication\Message\Email;
 
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Exception\InvalidArgumentException;
+use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\MessageException;
 use Pyncer\Snyppet\Communication\Exception\MessageExceptionCode;
 use Pyncer\Snyppet\Communication\Message\Email\EmailMessageInterface;
@@ -13,6 +14,7 @@ use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 
 use function Pyncer\he as pyncer_he;
 use function Pyncer\Snyppet\Communication\html_to_plain;
+use function Pyncer\Snyppet\Communication\is_valid_communication_content;
 use function Pyncer\Snyppet\Communication\plain_to_html;
 
 class EmailMessage implements EmailMessageInterface
@@ -253,7 +255,10 @@ class EmailMessage implements EmailMessageInterface
         ContentModel $contentModel,
     ): EmailMessage
     {
-        if (!static::isValidEmailContent($contentModel)) {
+        if (!is_valid_communication_content(
+            $contentModel,
+            CommunicationType::EMAIL,
+        )) {
             throw new MessageException(
                 'Communication content is invalid.',
                 MessageExceptionCode::CONTENT->value,

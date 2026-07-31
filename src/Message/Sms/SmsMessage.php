@@ -2,6 +2,7 @@
 namespace Pyncer\Snyppet\Communication\Message\Sms;
 
 use Pyncer\Database\ConnectionInterface;
+use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\MessageException;
 use Pyncer\Snyppet\Communication\Exception\MessageExceptionCode;
 use Pyncer\Snyppet\Communication\Message\SmsMessageInterface;
@@ -12,6 +13,7 @@ use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 
 use function Pyncer\he as pyncer_he;
 use function Pyncer\Snyppet\Communication\html_to_plain;
+use function Pyncer\Snyppet\Communication\is_valid_communication_content;
 
 class SmsMessage implements SmsMessageInterface
 {
@@ -73,7 +75,10 @@ class SmsMessage implements SmsMessageInterface
         ContentModel $contentModel,
     ): SmsMessage
     {
-        if (!static::isValidSmsContent($contentModel)) {
+        if (!is_valid_communication_content(
+            $contentModel,
+            CommunicationType::SMS,
+        )) {
             throw new MessageException(
                 'Communication content is invalid.'
                 MessageExceptionCode::CONTENT->value,
@@ -112,22 +117,5 @@ class SmsMessage implements SmsMessageInterface
         );
 
         return $message;
-    }
-
-    protected static function isValidSmsContent(ContentModel $contentModel): bool
-    {
-        if ($contentModel->getType() !== 'sms' &&
-            $contentModel->getType() !== 'communication'
-        ) {
-            return false;
-        }
-
-        if ($contentModel->getDeleted() ||
-            !$contentModel->getEnabled()
-        ) {
-            return false;
-        }
-
-        return true;
     }
 }

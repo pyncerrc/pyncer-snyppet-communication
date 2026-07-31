@@ -21,7 +21,7 @@ trait ReplaceMessageDataTrait
                 $value = $data[$key] ?? $default;
 
                 if (is_array($value)) {
-                    $replacement = $value[$type] ?? $default);
+                    $replacement = $value[$type] ?? $default;
                 } elseif ($type === 'text/html') {
                     $replacement = pyncer_he($value);
                 } else {

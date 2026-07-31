@@ -7,6 +7,8 @@ use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
 use Pyncer\Snyppet\Communication\CommunicationType;
 
+use function Pyncer\Snyppet\Communication\is_valid_communication_content;
+
 trait ScheduleCommunicationTrait
 {
     protected function scheduleCommunication(
@@ -14,7 +16,7 @@ trait ScheduleCommunicationTrait
         null|string|DateTimeInterface $scheduleDateTime,
     ): bool
     {
-        if (!$this->isValidCommunicationContent($contentModel)) {
+        if (is_valid_communication_content($contentModel)) {
             return false;
         }
 
@@ -30,23 +32,5 @@ trait ScheduleCommunicationTrait
         ]);
 
         return $communicationMapper->insert($communicationModel);
-    }
-
-    protected function isValidCommunicationContent(ContentModel $contentModel): bool
-    {
-        if ($contentModel->getType() !== 'email' &&
-            $contentModel->getType() !== 'sms' &&
-            $contentModel->getType() !== 'communication'
-        ) {
-            return false;
-        }
-
-        if ($contentModel->getDeleted() ||
-            !$contentModel->getEnabled()
-        ) {
-            return false;
-        }
-
-        return true;
     }
 }
