@@ -1,7 +1,7 @@
 <?php
 namespace Pyncer\Snyppet\Communication\Exception;
 
-enum SenderExceptionCode: int
+enum MessageExceptionCode: int
 {
     case UNKNOWN = 0;
     case CONTENT = 1;

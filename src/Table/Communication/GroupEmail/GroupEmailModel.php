@@ -46,13 +46,23 @@ class GroupEmailModel extends AbstractModel
         return $this;
     }
 
-    public function getData(): ?string
+    public function getMessageData(): ?array
     {
-        return $this->get('data');
+        $value = $this->get('message_data');
+
+        if (is_string($value)) {
+            if (!json_validate($value)) {
+                $value = null;
+            } else {
+                $value = json_decode($value, true);
+            }
+        }
+
+        return $value;
     }
-    public function setData(?string $value): static
+    public function setMessageData(null|string|array $value): static
     {
-        $this->set('data', $this->nullify($value));
+        $this->set('message_data', $this->nullify($value));
         return $this;
     }
 
@@ -74,7 +84,7 @@ class GroupEmailModel extends AbstractModel
             'emails' => '',
             'cc_emails' => null,
             'bcc_emails' => null,
-            'data' => null,
+            'message_data' => null,
             'sent' => false,
         ];
     }

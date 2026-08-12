@@ -2,6 +2,7 @@
 namespace Pyncer\Snyppet\Communication\Transport\Email;
 
 use Exception;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
 use PHPMailer\PHPMailer\PHPMailer;
 use Pyncer\Snyppet\Communication\Exception\TransportException;
 use Pyncer\Snyppet\Communication\Exception\TransportExceptionCode;
@@ -9,6 +10,7 @@ use Pyncer\Snyppet\Communication\Message\Email\EmailMessageInterface;
 use Pyncer\Snyppet\Communication\Message\MessageInterface;
 use Pyncer\Snyppet\Communication\Transport\ReplaceMessageDataTrait;
 use Pyncer\Snyppet\Communication\Transport\TransportInterface;
+use Pyncer\Validation\Rule\EmailRule;
 
 use function Pyncer\Snyppet\Communication\Email\explode_email;
 use function Pyncer\Snyppet\Communication\Email\explode_emails;
@@ -39,135 +41,166 @@ class SmtpTransport implements TransportInterface
             );
         }
 
-        $mailer = new PHPMailer(
-            exceptions: true
-        );
+        try {
+            $mailer = new PHPMailer(
+                exceptions: true
+            );
 
-        // Enable verbose debug output
-        // $message->SMTPDebug = SMTP::DEBUG_SERVER;
+            // Enable verbose debug output
+            // $message->SMTPDebug = SMTP::DEBUG_SERVER;
 
-        // Send using SMTP
-        $mailer->isSMTP();
+            // Send using SMTP
+            $mailer->isSMTP();
 
-        $mailer->Host = $this->host;
-        $mailer->Port = $this->port;
+            $mailer->Host = $this->host;
+            $mailer->Port = $this->port;
 
-        $mailer->SMTPAuth = true;
-        $mailer->Username = $this->username;
-        $mailer->Password = $this->password;
+            $mailer->SMTPAuth = true;
+            $mailer->Username = $this->username;
+            $mailer->Password = $this->password;
 
-        $mailer->SMTPSecure = (
-            $this->port === 587 ?
-            PHPMailer::ENCRYPTION_STARTTLS :
-            PHPMailer::ENCRYPTION_SMTPS
-        );
+            $mailer->SMTPSecure = (
+                $this->port === 587 ?
+                PHPMailer::ENCRYPTION_STARTTLS :
+                PHPMailer::ENCRYPTION_SMTPS
+            );
 
-        $mailer->CharSet = PHPMailer::CHARSET_UTF8;
+            $mailer->CharSet = PHPMailer::CHARSET_UTF8;
 
-        $subject = $message->getSubject();
-        if ($subject !== null) {
-            $mailer->Subject = $this->replaceMessageData($subject, $data);
-        }
+            $subject = $message->getSubject();
+            if ($subject !== null) {
+                $subject = $this->replaceMessageData($subject, $data);
+                $subject = str_replace("\n", ' ', $subject);
+                $mailer->Subject = $subject;
+            }
 
-        $body = $message->getBody();
-        if ($body !== null) {
-            if ($body['text/html'] ?? null !== null) {
-                $mailer->isHTML(true);
-                $mailer->Body = $this->replaceMessageData($body['text/html'], $data, 'text/html');
+            $body = $message->getBody();
+            if ($body !== null) {
+                if ($body['text/html'] ?? null !== null) {
+                    $mailer->isHTML(true);
+                    $mailer->Body = $this->replaceMessageData($body['text/html'], $data, 'text/html');
 
-                if ($body['text/plain'] ?? null !== null) {
-                    $mailer->AltBody = $this->replaceMessageData($body['text/plain'], $data);
+                    if ($body['text/plain'] ?? null !== null) {
+                        $mailer->AltBody = $this->replaceMessageData($body['text/plain'], $data);
+                    }
+                } elseif ($body['text/plain'] ?? null !== null) {
+                    $mailer->Body = $this->replaceMessageData($body['text/plain'], $data);
                 }
-            } elseif ($body['text/plain'] ?? null !== null) {
-                $mailer->Body = $this->replaceMessageData($body['text/plain'], $data);
-            }
-        }
-
-        $from = $message->getFrom();
-        if ($from !== null) {
-            if (is_string($from)) {
-                $from = explode_email($from);
             }
 
-            $mailer->setFrom(
-                $from[0],
-                $from[1] ?? '',
-            );
-        }
+            $from = $message->getFrom();
+            if ($from !== null) {
+                if (is_string($from)) {
+                    $from = explode_email($from);
+                }
 
-        $replyTo = $message->getReplyTo();
-        if ($replyTo !== null) {
-            if (is_string($replyTo)) {
-                $replyTo = explode_email($replyTo);
+                $fromEmail = $from[0];
+                $fromName = $from[1] ?? '';
+
+                if (str_contains($fromEmail, '[[')) {
+                    $fromEmail = $this->replaceMessageData($fromEmail, $data);
+                    $fromEmail = trim($fromEmail);
+
+                    $rule = new EmailRule();
+
+                    if ($fromEmail === '' || !$rule->isValid($fromEmail)) {
+                        throw new TransportException(
+                            'Invalid from email.',
+                            TransportExceptionCode::FROM->value,
+                        );
+                    }
+                }
+
+                if (str_contains($fromName, '[[')) {
+                    $fromName = $this->replaceMessageData($fromName, $data);
+                }
+
+                $mailer->setFrom(
+                    $fromEmail,
+                    $fromName,
+                );
             }
 
-            $mailer->addReplyTo(
-                $replyTo[0],
-                $replyTo[1] ?? '',
-            );
-        }
+            $replyTo = $message->getReplyTo();
+            if ($replyTo !== null) {
+                if (is_string($replyTo)) {
+                    $replyTo = explode_email($replyTo);
+                }
 
-        foreach ($message->getAttachments() as $attachment) {
-            if (str_starts_with($attachment[0], 'https://') ||
-                str_starts_with($attachment[0], 'http://')
-            ) {
-                $fileContent = file_get_contents($attachment[0]);
-                if ($fileContent !== false) {
-                    $mail->addStringAttachment(
-                        $fileContent,
-                        $attachment[1],
+                $mailer->addReplyTo(
+                    $replyTo[0],
+                    $replyTo[1] ?? '',
+                );
+            }
+
+            foreach ($message->getAttachments() as $attachment) {
+                if (str_starts_with($attachment[0], 'https://') ||
+                    str_starts_with($attachment[0], 'http://')
+                ) {
+                    $fileContent = file_get_contents($attachment[0]);
+                    if ($fileContent !== false) {
+                        $mail->addStringAttachment(
+                            $fileContent,
+                            $attachment[1],
+                        );
+                    }
+                } else {
+                    $message->addAttachment($attachment[0], $attachment[1]);
+                }
+            }
+
+            if (is_string($to)) {
+                $to = explode_emails($to);
+            }
+            $to = clean_emails($to);
+
+            foreach ($to as $email) {
+                $mailer->addAddress($email[0], $email[1] ?? '');
+            }
+
+            $ccEmails = $params['cc_emails'] ?? null;
+            if ($ccEmails !== null) {
+                if (is_string($ccEmails)) {
+                    $ccEmails = explode_emails($ccEmails);
+                }
+                $ccEmails = clean_emails($ccEmails);
+
+                foreach ($ccEmails as $email) {
+                    $mailer->addCC($email[0], $email[1] ?? '');
+                }
+            }
+
+            $bccEmails = $params['bcc_emails'] ?? null;
+            if ($bccEmails !== null) {
+                if (is_string($bccEmails)) {
+                    $bccEmails = explode_emails($bccEmails);
+                }
+                $bccEmails = clean_emails($bccEmails);
+
+                foreach ($bccEmails as $email) {
+                    $mailer->addBCC($email[0], $email[1] ?? '');
+                }
+            }
+
+            try {
+                if (!$mailer->send()) {
+                    throw new TransportException(
+                        'Email could not be sent.',
+                        TransportExceptionCode::UNKNOWN->value,
                     );
                 }
-            } else {
-                $message->addAttachment($attachment[0], $attachment[1]);
-            }
-        }
-
-        if (is_string($to)) {
-            $to = explode_emails($to);
-        }
-        $to = clean_emails($to);
-
-        foreach ($to as $email) {
-            $mailer->addAddress($email[0], $email[1] ?? '');
-        }
-
-        $ccEmails = $params['cc_emails'] ?? null;
-        if ($ccEmails !== null) {
-            if (is_string($ccEmails)) {
-                $ccEmails = explode_emails($ccEmails);
-            }
-            $ccEmails = clean_emails($ccEmails);
-
-            foreach ($ccEmails as $email) {
-                $mailer->addCC($email[0], $email[1] ?? '');
-            }
-        }
-
-        $bccEmails = $params['bcc_emails'] ?? null;
-        if ($bccEmails !== null) {
-            if (is_string($bccEmails)) {
-                $bccEmails = explode_emails($bccEmails);
-            }
-            $bccEmails = clean_emails($bccEmails);
-
-            foreach ($bccEmails as $email) {
-                $mailer->addBCC($email[0], $email[1] ?? '');
-            }
-        }
-
-        try {
-            if (!$mailer->send()) {
+            } catch(Exception $error) {
                 throw new TransportException(
                     'Email could not be sent.',
                     TransportExceptionCode::UNKNOWN->value,
+                    $error,
                 );
             }
-        } catch(Exception $e) {
+        } catch (PHPMailerException $error) {
             throw new TransportException(
                 'Email could not be sent.',
                 TransportExceptionCode::UNKNOWN->value,
-                $e,
+                $error,
             );
         }
     }

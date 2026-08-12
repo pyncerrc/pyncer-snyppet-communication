@@ -1,13 +1,20 @@
 <?php
-namespace Pyncer\Snyppet\Communication\Task
+namespace Pyncer\Snyppet\Communication\Task;
 
 use Pyncer\Database\ConnectionInterface;
+use Pyncer\Database\Record\SelectQueryInterface;
+use Pyncer\Snyppet\Communication\Exception\QueueException;
+use Pyncer\Snyppet\Communication\Exception\QueueExceptionCode;
 use Pyncer\Snyppet\Communication\Queue\Queue;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Task\AbstractTask;
 
+use function Pyncer\date_time as pyncer_date_time;
+
 class QueueTask extends AbstractTask
 {
+    protected array $queueErrors = [];
+
     public function __construct(
         ConnectionInterface $connection,
     ) {
@@ -19,8 +26,15 @@ class QueueTask extends AbstractTask
         );
     }
 
+    public function getQueueErrors(): array
+    {
+        return $this->queueErrors;
+    }
+
     public function runTask(array $params = []): void
     {
+        $this->queueErrors = [];
+
         $mapper = new CommunicationMapper($this->connection);
 
         $result = $mapper->selectAllByQuery(
@@ -41,7 +55,18 @@ class QueueTask extends AbstractTask
             try {
                 $queue->queue();
             } catch(QueueException $error) {
-                $this->errors[] = 'queue';
+                if (!in_array('queue', $this->errors)) {
+                    $this->errors[] = 'queue';
+                }
+
+                $code = match($error->getExceptionCode()) {
+                    QueueExceptionCode::STATUS => 'status',
+                    QueueExceptionCode::CONTENT => 'content',
+                    QueueExceptionCode::CONTACTS => 'contacts',
+                    default => 'unknown',
+                };
+
+                $this->queueErrors[] = $code . ': ' . $error->getMessage() . ' (' . $model->getId() . ')';
             }
 
             $this->touch();

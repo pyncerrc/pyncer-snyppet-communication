@@ -12,7 +12,7 @@ class GroupEmailMapper extends AbstractMapper
 {
     public function getTable(): string
     {
-        return 'communication__queue';
+        return 'communication__group_email';
     }
 
     public function forgeModel(iterable $data = []): ModelInterface

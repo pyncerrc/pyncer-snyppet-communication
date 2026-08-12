@@ -5,4 +5,5 @@ enum TransportExceptionCode: int
 {
     case UNKNOWN = 0;
     case MESSAGE = 1;
+    case FROM = 2;
 }

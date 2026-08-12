@@ -16,7 +16,7 @@
         "pyncer/snyppet": "^1.1.0",
         "pyncer/snyppet-content": "^1.0.0",
         "pyncer/snyppet-task": "^1.0.0",
-        "pyncer/validation": "^1.1.0"
+        "pyncer/validation": "^1.4.0"
     },
     "autoload": {
         "files": ["src/autoload.php"],

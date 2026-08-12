@@ -84,7 +84,7 @@ class CommunicationModel extends AbstractModel
             return null;
         }
 
-        return UserType::from($value);
+        return CommunicationType::from($value);
     }
     public function setType(null|string|CommunicationType $value): static
     {
@@ -99,7 +99,7 @@ class CommunicationModel extends AbstractModel
     public function getStatus(): CommunicationStatus
     {
         $value = $this->get('status');
-        return UserType::from($value);
+        return CommunicationStatus::from($value);
     }
     public function setStatus(string|CommunicationStatus $value): static
     {

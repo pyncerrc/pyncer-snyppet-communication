@@ -5,15 +5,17 @@ use Exception;
 use Pyncer\Data\MapperQuery\FiltersQueryParam;
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
+use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\QueueException;
 use Pyncer\Snyppet\Communication\Exception\QueueExceptionCode;
-use Pyncer\Snyppet\Communication\Table\CommunicationMapper;
-use Pyncer\Snyppet\Communication\Table\CommunicationModel;
+use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
+use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
 use Pyncer\Snyppet\Communication\Table\Communication\GroupEmail\GroupEmailMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\GroupEmail\GroupEmailModel;
 use Pyncer\Snyppet\Communication\Table\Communication\Queue\QueueMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\Queue\QueueModel;
 use Pyncer\Snyppet\Contact\Table\Contact\Profile\ProfileMapper as ContactProfileMapper;
+use Pyncer\Snyppet\Contact\Table\Contact\Profile\ProfileMapperQuery as ContactProfileMapperQuery;
 use Pyncer\Snyppet\Content\Table\Content\ContentMapper;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 use Pyncer\Snyppet\Content\Table\Content\DataManager as ContentDataManager;
@@ -21,16 +23,19 @@ use Pyncer\Snyppet\Content\Table\Content\ValueManager as ContentValueManager;
 use Pyncer\Snyppet\SnyppetManager;
 
 use function Pyncer\date_time as pyncer_date_time;
+use function Pyncer\Snyppet\Communication\Email\clean_email;
 use function Pyncer\Snyppet\Communication\Email\explode_emails;
 use function Pyncer\Snyppet\Communication\Email\implode_emails;
 use function Pyncer\Snyppet\Communication\Email\unique_emails;
+use function Pyncer\Snyppet\Communication\is_valid_communication_content;
+use function Pyncer\Snyppet\Communication\Sms\clean_phone;
 use function Pyncer\Snyppet\Communication\Sms\explode_phones;
 use function Pyncer\Snyppet\Communication\Sms\unique_phones;
 
+use const Pyncer\Snyppet\Communication\PHONE_ALLOW_NANP as PYNCER_COMMUNICATION_PHONE_ALLOW_NANP;
+
 class Queue
 {
-    use SnyppetTrait;
-
     public function __construct(
         protected ConnectionInterface $connection,
         protected CommunicationModel $communicationModel,
@@ -51,27 +56,27 @@ class Queue
 
         if ($this->communicationModel->getStatus() === CommunicationStatus::SENT) {
             throw new QueueException(
-                'Communication has already sent.'
+                'Communication has already sent.',
                 QueueExceptionCode::STATUS->value,
             );
         }
 
         if ($this->communicationModel->getStatus() === CommunicationStatus::FAILED) {
             throw new QueueException(
-                'Communication has previously failed.'
+                'Communication has previously failed.',
                 QueueExceptionCode::STATUS->value,
             );
         }
 
         $this->connection->delete('communication__queue')
             ->where([
-                'communication_id' => $communicationModel->getId()
+                'communication_id' => $this->communicationModel->getId()
             ])
             ->execute();
 
         $this->connection->delete('communication__group_email')
             ->where([
-                'communication_id' => $communicationModel->getId()
+                'communication_id' => $this->communicationModel->getId()
             ])
             ->execute();
 
@@ -79,20 +84,20 @@ class Queue
         $contentMapper = new ContentMapper($this->connection);
         $contentModel = $contentMapper->selectById($this->communicationModel->getContentId());
 
-        if (!$this->isValidCommunicationContent($contentModel)) {
-            $communicationModel->setUpdateDateTime(pyncer_date_time());
-            $communicationModel->setStatus(CommunicationStatus::FAILED);
-            $communicationMapper->update($communicationModel);
+        if (!is_valid_communication_content($contentModel)) {
+            $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+            $this->communicationModel->setStatus(CommunicationStatus::FAILED);
+            $communicationMapper->update($this->communicationModel);
 
             throw new QueueException(
-                'Communication content is invalid.'
+                'Communication content is invalid.',
                 QueueExceptionCode::CONTENT->value,
             );
         }
 
-        $contentDataManager = new ContentValueMananger($this->connection, $contentModel->getId());
+        $contentDataManager = new ContentValueManager($this->connection, $contentModel->getId());
 
-        $contentValueManager = new ContentValueMananger($this->connection, $contentModel->getId());
+        $contentValueManager = new ContentValueManager($this->connection, $contentModel->getId());
         $contentValueManager->load(
             'to_contact_id',
             'group_email',
@@ -101,13 +106,13 @@ class Queue
         $groupEmail = $contentValueManager->getBool('group_email');
 
         $queueEmails = (
-            $communicationModel->getType() === null ||
-            $communicationModel->getType() === 'email'
+            $this->communicationModel->getType() === null ||
+            $this->communicationModel->getType() === CommunicationType::EMAIL
         );
 
         $queuePhones = (
-            $communicationModel->getType() === null ||
-            $communicationModel->getType() === 'sms'
+            $this->communicationModel->getType() === null ||
+            $this->communicationModel->getType() === CommunicationType::SMS
         );
 
         $hasContacts = false;
@@ -115,55 +120,69 @@ class Queue
         if ($groupEmail && $queueEmails) {
             try {
                 if ($this->insertGroupEmail(
-                    $communicationModel,
+                    $this->communicationModel,
                     $contentModel,
                 )) {
                     $hasContacts = true;
                 }
             } catch (Exception $error) {
-                $communicationModel->setUpdateDateTime(pyncer_date_time());
-                $communicationModel->setStatus(CommunicationStatus::FAILED);
-                $communicationMapper->update($communicationModel);
+                $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+                $this->communicationModel->setStatus(CommunicationStatus::FAILED);
+                $communicationMapper->update($this->communicationModel);
 
                 throw new QueueException(
-                    'Error inserting group email.'
+                    'Error inserting group email.',
                     QueueExceptionCode::UNKNOWN->value,
                     $error,
                 );
             }
         } elseif ($queueEmails) {
-            $contentDataManager->load('to_phones');
+            $contentDataManager->load('to_emails');
 
             $toEmails = $contentDataManager->getString('to_emails');
             $toEmails = explode_emails($toEmails);
 
-            $toContactId = $contentDataManager->getInt('to_contact_id', null);
+            $toContactId = $contentValueManager->getInt('to_contact_id', null);
             if ($toContactId !== null) {
-                $contactToEmails = $this->getContactEmails($contactId);
-                $toEmails = [...$toEmails, ...$contactToEmails]
+                $contactToEmails = $this->getContactEmails($toContactId);
+                $toEmails = [...$contactToEmails, ...$toEmails];
             }
 
-            $toEmails = unique_emails($toEmails);
-
-            if ($toEmails) {
-                $hasContacts = true;
-            }
+            $usedEmails = [];
 
             foreach ($toEmails as $toEmail) {
                 try {
+                    $contactProfileId = $toEmail[2] ?? null;
+                    $toEmail = clean_email($toEmail);
+
+                    if ($toEmail === null) {
+                        continue;
+                    }
+
+                    $normalizedEmail = strtolower($toEmail[1]);
+
+                    if (in_array($normalizedEmail, $usedEmails)) {
+                        continue;
+                    }
+
+                    $usedEmails[] = $normalizedEmail;
+
+                    $hasContacts = true;
+
                     $this->insertQueue(
-                        $communicationModel,
+                        $this->communicationModel,
                         $toEmail[1],
                         $toEmail[0],
                         null,
+                        $contactProfileId,
                     );
                 } catch (Exception $error) {
-                    $communicationModel->setUpdateDateTime(pyncer_date_time());
-                    $communicationModel->setStatus(CommunicationStatus::FAILED);
-                    $communicationMapper->update($communicationModel);
+                    $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+                    $this->communicationModel->setStatus(CommunicationStatus::FAILED);
+                    $communicationMapper->update($this->communicationModel);
 
                     throw new QueueException(
-                        'Error inserting email into queue.'
+                        'Error inserting email into queue.',
                         QueueExceptionCode::UNKNOWN->value,
                         $error,
                     );
@@ -180,39 +199,57 @@ class Queue
             $toContactId = $contentDataManager->getInt('to_contact_id', null);
             if ($toContactId !== null) {
                 $contactToPhones = $this->getContactPhones($contactId);
-                $toPhones = [...$toEmails, ...$contactToPhones]
+                $toPhones = [...$contactToPhones, ...$toPhones];
             }
 
-            $toPhones = unique_phones($toPhones);
-
-            if ($toPhones) {
-                $hasContacts = true;
-            }
+            $usedPhones = [];
 
             foreach ($toPhones as $toPhone) {
                 try {
-                    if (is_array($toPhone)) {
-                        $this->insertQueue(
-                            $communicationModel,
-                            $toPhone[1],
-                            null,
-                            $toPhone[0],
-                        );
+                    if (is_string($toPhone)) {
+                        $toPhone = [$toPhone, null];
+                        $contactProfileId = null;
                     } else {
-                        $this->insertQueue(
-                            $communicationModel,
-                            null,
-                            null,
-                            $toPhone,
-                        );
+                        $contactProfileId = $toEmail[2] ?? null;
                     }
+                    $toPhone = clean_phone($toPhone);
+
+                    if ($toPhone === null) {
+                        continue;
+                    }
+
+                    $normalizedPhone = preg_replace('/[^\d\+]/', '', $value);
+
+                    if (PYNCER_COMMUNICATION_PHONE_ALLOW_NANP) {
+                        if (strlen($normalizedPhone) === 11 &&
+                            str_starts_with($normalizedPhone, '1')
+                        ) {
+                            $normalizedPhone = substr($normalizedPhone, 1);
+                        }
+                    }
+
+                    if (in_array($normalizedPhone, $usedPhones)) {
+                        continue;
+                    }
+
+                    $usedPhones[] = $normalizedPhone;
+
+                    $hasContacts = true;
+
+                    $this->insertQueue(
+                        $this->communicationModel,
+                        $toPhone[1],
+                        null,
+                        $toPhone[0],
+                        $contactProfileId,
+                    );
                 } catch (Exception $error) {
-                    $communicationModel->setUpdateDateTime(pyncer_date_time());
-                    $communicationModel->setStatus(CommunicationStatus::FAILED);
-                    $communicationMapper->update($communicationModel);
+                    $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+                    $this->communicationModel->setStatus(CommunicationStatus::FAILED);
+                    $communicationMapper->update($this->communicationModel);
 
                     throw new QueueException(
-                        'Error inserting phone into queue.'
+                        'Error inserting phone into queue.',
                         QueueExceptionCode::UNKNOWN->value,
                         $error,
                     );
@@ -221,27 +258,27 @@ class Queue
         }
 
         if (!$hasContacts) {
-            $communicationModel->setUpdateDateTime(pyncer_date_time());
-            $communicationModel->setStatus(CommunicationStatus::FAILED);
-            $communicationMapper->update($communicationModel);
+            $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+            $this->communicationModel->setStatus(CommunicationStatus::FAILED);
+            $communicationMapper->update($this->communicationModel);
 
             throw new QueueException(
-                'No emails to send to.'
+                'No emails to send to.',
                 QueueExceptionCode::CONTACTS->value,
             );
         }
 
-        $communicationModel->setUpdateDateTime(pyncer_date_time());
-        $communicationModel->setStatus(CommunicationStatus::QUEUED);
-        $communicationMapper->update($communicationModel);
+        $this->communicationModel->setUpdateDateTime(pyncer_date_time());
+        $this->communicationModel->setStatus(CommunicationStatus::QUEUED);
+        $communicationMapper->update($this->communicationModel);
     }
 
-    protected function insertGroupEmails(
+    protected function insertGroupEmail(
         CommunicationModel $communicationModel,
         ContentModel $contentModel,
-    ): void
+    ): bool
     {
-        $contentDataManager = new ContentValueMananger(
+        $contentDataManager = new ContentValueManager(
             $this->connection,
             $contentModel->getId()
         );
@@ -251,7 +288,7 @@ class Queue
             'to_bcc_emails',
         );
 
-        $contentValueManager = new ContentValueMananger(
+        $contentValueManager = new ContentValueManager(
             $this->connection,
             $contentModel->getId()
         );
@@ -284,28 +321,11 @@ class Queue
             return false;
         }
 
-        $this->insertGroupEmail(
-            $communicationModel,
-            $toEmails,
-            $toCcEmails,
-            $toBccEmails,
-        );
-
-        return true;
-    }
-
-    protected function insertGroupEmail(
-        CommunicationModel $communicationModel,
-        string $emails,
-        ?string $ccEmails,
-        ?string $bccEmails,
-    ): bool
-    {
         $model = new GroupEmailModel();
         $model->setCommunicationId($communicationModel->getId());
-        $model->setEmails($emails);
-        $model->setCcEmails($ccEmails);
-        $model->setBccEmails($bccEmails);
+        $model->setEmails($toEmails);
+        $model->setCcEmails($toCcEmails);
+        $model->setBccEmails($toBccEmails);
 
         $mapper = new GroupEmailMapper($this->connection);
         return $mapper->insert($model);
@@ -316,6 +336,7 @@ class Queue
         ?string $name,
         ?string $email,
         ?string $phone,
+        ?int $contactProfileId = null,
     ): bool
     {
         $model = new QueueModel();
@@ -325,13 +346,26 @@ class Queue
         $model->setPhone($phone);
 
         $mapper = new QueueMapper($this->connection);
-        return $mapper->insert($model);
+        if (!$mapper->insert($model)) {
+            return false;
+        }
+
+        if ($contactProfileId !== null) {
+            $this->connection->insert('communication__queue__contact_profile')
+                ->values([
+                    'communication_queue_id' => $model->getId(),
+                    'contact_profile_id' => $contactProfileId,
+                ])
+                ->execute();
+        }
+
+        return true;
     }
 
     protected function getContactEmails(int $contactId): array
     {
         if (!SnyppetManager::getInstance()->has('contact')) {
-            return []
+            return [];
         }
 
         $emails = [];
@@ -350,7 +384,7 @@ class Queue
                 continue;
             }
 
-            $emails[] = [$profile->getEmail(), $profile->getName()];
+            $emails[] = [$profile->getEmail(), $profile->getName(), $profile->getId()];
         }
 
         return $emails;
@@ -359,7 +393,7 @@ class Queue
     protected function getContactPhones(int $contactId): array
     {
         if (!SnyppetManager::getInstance()->has('contact')) {
-            return []
+            return [];
         }
 
         $phones = [];
@@ -378,27 +412,9 @@ class Queue
                 continue;
             }
 
-            $phones[] = [$profile->getPhone(), $profile->getName()];
+            $phones[] = [$profile->getPhone(), $profile->getName(), $profile->getId()];
         }
 
         return $phones;
-    }
-
-    protected function isValidCommunicationContent(ContentModel $contentModel): bool
-    {
-        if ($contentModel->getType() !== 'email' &&
-            $contentModel->getType() !== 'sms' &&
-            $contentModel->getType() !== 'communication'
-        ) {
-            return false;
-        }
-
-        if ($contentModel->getDeleted() ||
-            !$contentModel->getEnabled()
-        ) {
-            return false;
-        }
-
-        return true;
     }
 }

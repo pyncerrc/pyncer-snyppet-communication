@@ -8,15 +8,15 @@ use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 
-trait CommunicationStatusTrait
+use function Pyncer\date_time as pyncer_date_time;
+
+trait CancelCommunicationTrait
 {
-    protected function getCommunicationStatus(
-        ContentModel $contentModel,
-    ): ?CommunicationStatus
+    protected function cancelCommunication(ContentModel $contentModel): bool
     {
         $connection = $this->get(ID::DATABASE);
 
-        $mapper = new CommunicationMapper($connection;
+        $mapper = new CommunicationMapper($connection);
 
         $model = $mapper->selectByQuery(
             function(SelectQueryInterface $query) use($contentModel) {
@@ -32,15 +32,29 @@ trait CommunicationStatusTrait
         );
 
         if ($model === null) {
-            return null;
+            return false;
         }
 
-        if ($model->getStatus() === CommunicationStatus::SCHEDULED) {
-            if ($model->getScheduleDateTime() === null) {
-                return CommunicationStatus::QUEUED;
-            }
+        if ($model->getStatus() === CommunicationStatus::QUEUED ||
+            $model->getStatus() === CommunicationStatus::SCHEDULED ||
+            $model->getStatus() === CommunicationStatus::SENDING
+        ) {
+            $model->setStatus(CommunicationStatus::CANCELED);
+            $model->setUpdateDateTime(pyncer_date_time());
+
+            $connection->update('communication__queue')
+                ->values([
+                    'status' => 'canceled',
+                ])
+                ->where([
+                    'status' => 'queued',
+                    'communication_id' => $model->getId(),
+                ])
+                ->execute();
+
+            return $mapper->update($model);
         }
 
-        return $model->getStatus();
+        return false;
     }
 }

@@ -8,4 +8,5 @@ enum QueueStatus: string
     case DELIVERED = 'delivered';
     case DROPPED = 'dropped';
     case BOUNCED = 'bounced';
+    case CANCELED = 'canceled';
 }

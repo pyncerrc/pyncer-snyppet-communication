@@ -1,12 +1,15 @@
 <?php
 namespace Pyncer\Snyppet\Communication\Sender;
 
+use Exception;
+use Pyncer\Data\MapperQuery\FiltersQueryParam;
 use Pyncer\Database\ConnectionInterface;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
 use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\SenderException;
 use Pyncer\Snyppet\Communication\Exception\SenderExceptionCode;
 use Pyncer\Snyppet\Communication\Message\MessageInterface;
+use Pyncer\Snyppet\Communication\Queue\QueueStatus;
 use Pyncer\Snyppet\Communication\Sender\SenderProviderInterface;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
@@ -35,188 +38,246 @@ class CommunicationSender
         ?callable $callback = null,
     ): void
     {
-        $communicationMapper = new CommunicationMapper($this->connection);
+        try {
+            $communicationMapper = new CommunicationMapper($this->connection);
 
-        $communicationModel->setUpdateDateTime(pyncer_date_time());
-        $communicationModel->setStatus(CommunicationStatus::SENDING);
-        $communicationMapper->update($communicationModel);
+            $communicationModel->setUpdateDateTime(pyncer_date_time());
+            $communicationModel->setStatus(CommunicationStatus::SENDING);
+            $communicationMapper->update($communicationModel);
 
-        $emailData = [];
-        $emailTransport = null;
-        $emailMessage = null;
+            $emailData = [];
+            $emailTransport = null;
+            $emailMessage = null;
 
-        $smsData = [];
-        $smsTransport = null;
-        $smsMessage = null;
+            $smsData = [];
+            $smsTransport = null;
+            $smsMessage = null;
 
-        $organizationId = $this->getOrganizationId(
-            $communicationModel->getId(),
-        );
-
-        $contentMapper = new ContentMapper($this->connection);
-        $contentModel = $contentMapper->selectById($communicationModel->getContentId());
-
-        if ($communicationModel->getType() === 'email' ||
-            $communicationModel->getType() === null
-        ) {
-            $emailData = $this->senderProvider->getData(
-                CommunicationType::EMAIL,
-                $organizationId,
-            );
-
-            $emailMessage = $this->senderProvider->getMessage(
-                $contentModel,
-                CommunicationType::EMAIL,
-                $organizationId,
-            );
-
-            if ($emailMessage === null) {
-                throw new SenderException(
-                    'Sender provider returned no email message.'
-                    SenderExceptionCode::MESSAGE->value,
-                );
-            }
-
-            $emailTransport = $this->senderProvider->getTransport(
-                CommunicationType::EMAIL,
-                $organizationId,
-            );
-
-            if ($emailTransport === null) {
-                throw new SenderException(
-                    'Sender provider returned no email transport.'
-                    SenderExceptionCode::TRANSPORT->value,
-                );
-            }
-
-            $groupEmailMapper = new GroupEmailMapper($this->connection);
-            $groupEmailMapperQuery = new GroupEmailMapperQuery($this->connection);
-            $filters = new FiltersQueryParam(
-                'sent eq false'
-            );
-            $groupEmailMapperQuery->setFilters($filters);
-
-            $result = $groupEmailMapper->selectAllByCommunicationId(
+            $organizationId = $this->getOrganizationId(
                 $communicationModel->getId(),
-                $groupEmailMapperQuery,
             );
 
-            foreach ($result as $groupEmailModel) {
-                $this->sendGroupEmail(
-                    $groupEmailModel,
-                    $emailTransport,
-                    $emailMessage,
-                    $emailData,
-                );
+            $contentMapper = new ContentMapper($this->connection);
+            $contentModel = $contentMapper->selectById($communicationModel->getContentId());
 
-                $groupEmailModel->setSent(true);
-                $groupEmailMapper->update($groupEmailModel);
-
-                if ($callback !== null) {
-                    call_user_func($callback, $groupEmailModel);
-                }
-            }
-        }
-
-        if ($communicationModel->getType() === 'phone' ||
-            $communicationModel->getType() === null
-        ) {
-            $smsData = $this->senderProvider->getData(
-                CommunicationType::SMS,
-                $organizationId,
-            );
-
-            $smsMessage = $this->senderProvider->getMessage(
-                $contentModel,
-                CommunicationType::SMS,
-                $organizationId,
-            );
-
-            if ($smsMessage === null) {
-                throw new SenderException(
-                    'Sender provider returned no SMS message.'
-                    SenderExceptionCode::MESSAGE->value,
-                );
-            }
-
-            $smsTransport = $this->senderProvider->getTransport(
-                CommunicationType::SMS,
-                $organizationId,
-            );
-
-            if ($smsTransport === null) {
-                throw new SenderException(
-                    'Sender provider returned no SMS transport.'
-                    SenderExceptionCode::TRANSPORT->value,
-                );
-            }
-        }
-
-        $queueMapper = new QueueMapper($this->connection);
-        $queueMapperQuery = new QueueMapperQuery($this->connection);
-        $filters = new FiltersQueryParam(
-            'status eq \'queued\''
-        );
-        $queueMapperQuery->setFilters($filters);
-        $result = $queueMapper->selectAllByCommunicationId(
-            $communicationModel->getId(),
-            $queueMapperQuery,
-        );
-
-        foreach ($result as $queueModel) {
-            $contactProfileId = $this->connection->select('communication__queue__contact')
-                ->columns('contact_profile_id')
-                ->where([
-                    'communication_queue_id' => $queueModel->getId(),
-                ])
-                ->value();
-
-            if ($communicationModel->getType() === 'email' ||
+            if ($communicationModel->getType() === CommunicationType::EMAIL ||
                 $communicationModel->getType() === null
             ) {
-                if ($queueModel->getEmail() !== null) {
-                    $contactProfileData = $this->senderProvider->getContactProfileData(
-                        CommunicationType::EMAIL,
-                        $contactProfileId,
-                    );
+                $emailData = $this->senderProvider->getData(
+                    CommunicationType::EMAIL,
+                    $organizationId,
+                );
 
-                    $thsi->sendQueueEmail(
-                        $queueModel,
+                $emailMessage = $this->senderProvider->getMessage(
+                    $contentModel,
+                    CommunicationType::EMAIL,
+                    $organizationId,
+                );
+
+                if ($emailMessage === null) {
+                    throw new SenderException(
+                        'Sender provider returned no email message.',
+                        SenderExceptionCode::MESSAGE->value,
+                    );
+                }
+
+                $emailTransport = $this->senderProvider->getTransport(
+                    CommunicationType::EMAIL,
+                    $organizationId,
+                );
+
+                if ($emailTransport === null) {
+                    throw new SenderException(
+                        'Sender provider returned no email transport.',
+                        SenderExceptionCode::TRANSPORT->value,
+                    );
+                }
+
+                $groupEmailMapper = new GroupEmailMapper($this->connection);
+                $groupEmailMapperQuery = new GroupEmailMapperQuery($this->connection);
+                $filters = new FiltersQueryParam(
+                    'sent eq false'
+                );
+                $groupEmailMapperQuery->setFilters($filters);
+
+                $result = $groupEmailMapper->selectAllByCommunicationId(
+                    $communicationModel->getId(),
+                    $groupEmailMapperQuery,
+                );
+
+                foreach ($result as $groupEmailModel) {
+                    $this->sendGroupEmail(
+                        $groupEmailModel,
                         $emailTransport,
                         $emailMessage,
-                        [...$emailData, ...$contactProfileData],
-                    )
+                        $emailData,
+                    );
 
-                    $queueModel->setStatus(QueueStatus::SENT);
-                    $queueMapper->update($queueModel);
+                    $groupEmailModel->setSent(true);
+                    $groupEmailMapper->update($groupEmailModel);
+
+                    if ($callback !== null) {
+                        call_user_func($callback, $groupEmailModel);
+                    }
                 }
             }
 
-            if ($communicationModel->getType() === 'phone' ||
+            if ($communicationModel->getType() === CommunicationType::SMS ||
                 $communicationModel->getType() === null
             ) {
-                if ($queueModel->getPhone() !== null) {
-                    $thsi->sendQueueSms(
+                $smsData = $this->senderProvider->getData(
+                    CommunicationType::SMS,
+                    $organizationId,
+                );
+
+                $smsMessage = $this->senderProvider->getMessage(
+                    $contentModel,
+                    CommunicationType::SMS,
+                    $organizationId,
+                );
+
+                if ($smsMessage === null) {
+                    throw new SenderException(
+                        'Sender provider returned no SMS message.',
+                        SenderExceptionCode::MESSAGE->value,
+                    );
+                }
+
+                $smsTransport = $this->senderProvider->getTransport(
+                    CommunicationType::SMS,
+                    $organizationId,
+                );
+
+                if ($smsTransport === null) {
+                    throw new SenderException(
+                        'Sender provider returned no SMS transport.',
+                        SenderExceptionCode::TRANSPORT->value,
+                    );
+                }
+            }
+
+            $queueMapper = new QueueMapper($this->connection);
+            $queueMapperQuery = new QueueMapperQuery($this->connection);
+            $filters = new FiltersQueryParam(
+                'status eq \'queued\''
+            );
+            $queueMapperQuery->setFilters($filters);
+            $result = $queueMapper->selectAllByCommunicationId(
+                $communicationModel->getId(),
+                $queueMapperQuery,
+            );
+
+            foreach ($result as $queueModel) {
+                $contactProfileId = $this->connection->select('communication__queue__contact_profile')
+                    ->columns('contact_profile_id')
+                    ->where([
+                        'communication_queue_id' => $queueModel->getId(),
+                    ])
+                    ->value();
+
+                if ($communicationModel->getType() === CommunicationType::EMAIL ||
+                    $communicationModel->getType() === null
+                ) {
+                    if ($queueModel->getEmail() !== null) {
+                        $contactProfileData = $this->senderProvider->getContactProfileData(
+                            CommunicationType::EMAIL,
+                            $contactProfileId,
+                        );
+
+                        $messageData = $this->getMessageData(
+                            $queueModel,
+                            CommunicationType::EMAIL,
+                        );
+
+                        $this->sendQueueEmail(
+                            $queueModel,
+                            $emailTransport,
+                            $emailMessage,
+                            [...$emailData, ...$contactProfileData, ...$messageData],
+                        );
+
+                        $queueModel->setStatus(QueueStatus::SENT);
+                        $queueMapper->update($queueModel);
+                    }
+                }
+
+                if ($communicationModel->getType() === CommunicationType::SMS ||
+                    $communicationModel->getType() === null
+                ) {
+                    if ($queueModel->getPhone() !== null) {
                         $contactProfileData = $this->senderProvider->getContactProfileData(
                             CommunicationType::SMS,
                             $contactProfileId,
                         );
 
-                        $queueModel,
-                        $smsTransport,
-                        $smsMessage,
-                        [...$smsData, ...$contactProfileData],
-                    )
+                        $messageData = $this->getMessageData(
+                            $queueModel,
+                            CommunicationType::SMS,
+                        );
 
-                    $queueModel->setStatus(QueueStatus::SENT);
-                    $queueMapper->update($queueModel);
+                        $this->sendQueueSms(
+                            $queueModel,
+                            $smsTransport,
+                            $smsMessage,
+                            [...$smsData, ...$contactProfileData],
+                        );
+
+                        $queueModel->setStatus(QueueStatus::SENT);
+                        $queueMapper->update($queueModel);
+                    }
                 }
             }
+
+            $communicationModel->setUpdateDateTime(pyncer_date_time());
+            $communicationModel->setStatus(CommunicationStatus::SENT);
+            $communicationMapper->update($communicationModel);
+        } catch(Exception $error) {
+            $communicationModel->setUpdateDateTime(pyncer_date_time());
+            $communicationModel->setStatus(CommunicationStatus::FAILED);
+            $communicationMapper->update($communicationModel);
+
+            throw $error;
+        }
+    }
+
+    protected function getMessageData(
+        QueueModel $queueModel,
+        CommunicationType $communicationType,
+    ): array
+    {
+        $messageData = $queueModel->getMessageData() ?? [];
+
+        if ($communicationType === CommunicationType::EMAIL) {
+            if (array_key_exists('email', $messageData) &&
+                is_array($messageData['email'])
+            ) {
+                return $messageData['email'];
+            }
+
+            foreach ($messageData as $key => $value) {
+                if (is_array($value)) {
+                    return [];
+                }
+            }
+
+            return $messageData;
+        } elseif ($communicationType === CommunicationType::SMS) {
+            if (array_key_exists('sms', $messageData) &&
+                is_array($messageData['sms'])
+            ) {
+                return $messageData['sms'];
+            }
+
+            foreach ($messageData as $key => $value) {
+                if (is_array($value)) {
+                    return [];
+                }
+            }
+
+            return $messageData;
         }
 
-        $communicationModel->setUpdateDateTime(pyncer_date_time());
-        $communicationModel->setStatus(CommunicationStatus::SENT);
-        $communicationMapper->update($communicationModel);
+        return [];
     }
 
     protected function getOrganizationId(int $communicationId): ?int
@@ -225,7 +286,10 @@ class CommunicationSender
             return null;
         }
 
-        $this->connection->select()
+        return $this->connection->select('communication__organization')
+            ->columns('organization_id')
+            ->where(['communication_id' => $communicationId])
+            ->value();
     }
 
     protected function sendGroupEmail(

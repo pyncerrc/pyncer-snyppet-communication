@@ -12,6 +12,8 @@ use Pyncer\Validation\Rule\IntRule;
 use Pyncer\Validation\Rule\RequiredRule;
 use Pyncer\Validation\Rule\StringRule;
 
+use const Pyncer\Snyppet\Communication\EMAIL_ALLOW_UPPERCASE as PYNCER_COMMUNICATION_EMAIL_ALLOW_UPPERCASE;
+
 class GroupEmailValidator extends AbstractValidator
 {
     public function __construct(ConnectionInterface $connection)
@@ -48,7 +50,9 @@ class GroupEmailValidator extends AbstractValidator
 
         $this->addRules(
             'bcc_emails',
-            new EmailRule(),
+            new EmailRule(
+                allowUppercase: PYNCER_COMMUNICATION_EMAIL_ALLOW_UPPERCASE,
+            ),
             new StringRule(
                 maxLength: 4000000,
                 allowNull: true,
@@ -56,7 +60,7 @@ class GroupEmailValidator extends AbstractValidator
         );
 
         $this->addRules(
-            'data',
+            'message_data',
             new RequiredRule(),
             new StringRule(
                 maxLength: 16000,

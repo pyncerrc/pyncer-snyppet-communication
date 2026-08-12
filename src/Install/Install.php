@@ -34,7 +34,7 @@ class Install extends AbstractInstall
             ->text('emails', TextSize::MEDIUM)
             ->text('cc_emails', TextSize::MEDIUM)->null()
             ->text('bcc_emails', TextSize::MEDIUM)->null()
-            ->text('data', TextSize::SMALL)->null()
+            ->text('message_data', TextSize::SMALL)->null()
             ->bool('sent')->default(false)->index()
             ->foreignKey(null, 'communication_id')
                 ->references('communication', 'id')
@@ -48,8 +48,8 @@ class Install extends AbstractInstall
             ->string('name', 50)->null()->index()
             ->string('email', 125)->null()->index()
             ->string('phone', 25)->null()->index()
-            ->text('data', TextSize::SMALL)->null()
-            ->enum('status', ['queued', 'sent', 'delivered', 'dopped', 'bounced'])->default('queued')->index()
+            ->text('message_data', TextSize::SMALL)->null()
+            ->enum('status', ['queued', 'sent', 'delivered', 'dopped', 'bounced', 'canceled'])->default('queued')->index()
             ->int('attempts')->default(0)->index()
             ->bool('opened')->default(false)->index()
             ->bool('unsubscribed')->default(false)->index()
@@ -130,17 +130,17 @@ class Install extends AbstractInstall
 
     protected function installContact(): bool
     {
-        $this->connection->createTable('communication__queue__contact')
+        $this->connection->createTable('communication__queue__contact_profile')
             ->serial('id')
             ->int('communication_queue_id', IntSize::BIG)->index()
-            ->int('contact_id', IntSize::BIG)->index()
+            ->int('contact_profile_id', IntSize::BIG)->index()
             ->index('#unique', 'communication_queue_id')->unique()
             ->foreignKey(null, 'communication_queue_id')
                 ->references('communication__queue', 'id')
                 ->deleteAction(ReferentialAction::CASCADE)
                 ->updateAction(ReferentialAction::CASCADE)
-            ->foreignKey(null, 'contact_id')
-                ->references('contact', 'id')
+            ->foreignKey(null, 'contact_profile_id')
+                ->references('contact__profile', 'id')
                 ->deleteAction(ReferentialAction::CASCADE)
                 ->updateAction(ReferentialAction::CASCADE)
             ->execute();
@@ -150,8 +150,8 @@ class Install extends AbstractInstall
 
     protected function uninstallContact(): bool
     {
-        if ($this->connection->hasTable('communication__queue__contact')) {
-            $this->connection->dropTable('communication__queue__contact');
+        if ($this->connection->hasTable('communication__queue__contact_profile')) {
+            $this->connection->dropTable('communication__queue__contact_profile');
         }
 
         return true;

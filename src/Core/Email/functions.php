@@ -5,6 +5,8 @@ use Pyncer\Validation\Rule\EmailRule;
 
 use function Pyncer\Array\data_explode as pyncer_array_data_explode;
 
+use const Pyncer\Snyppet\Communication\EMAIL_ALLOW_UPPERCASE as PYNCER_COMMUNICATION_EMAIL_ALLOW_UPPERCASE;
+
 function implode_email(string $email, string $name): string
 {
     return $name . ' <' . $email . '>';
@@ -78,6 +80,49 @@ function explode_emails(string $emails): array
     return $result;
 }
 
+function clean_email(string|array $email): null|string|array
+{
+    $rule = new EmailRule(
+        allowUppercase: PYNCER_COMMUNICATION_EMAIL_ALLOW_UPPERCASE,
+    );
+
+    $isString = false;
+
+    if (is_string($email)) {
+        $isString = true;
+        $email = explode_email($email);
+    } elseif (!is_array($email) || !$email) {
+        return null;
+    } else {
+        $email = [
+            trim(strval($email[0])),
+            trim(strval($email[1] ?? '')),
+        ];
+
+        if ($email[1] === '') {
+            $email[1] = null;
+        }
+    }
+
+    if ($email[0] === '' ||
+        !$rule->isValid($email[0])
+    ) {
+        return null;
+    }
+
+    $email[0] = $rule->clean($email[0]);
+
+    if ($isString) {
+        if ($email[1] === null) {
+            $email = $email[0];
+        } else {
+            $email = implode_email($email[0], $email[1]);
+        }
+    }
+
+    return $email;
+}
+
 function clean_emails(string|array $emails): null|string|array
 {
     $isString = is_string($emails);
@@ -87,60 +132,33 @@ function clean_emails(string|array $emails): null|string|array
 
     $result = [];
 
-    $rule = new EmailRule();
-
     if (array_is_list($emails)) {
         foreach ($emails as $value) {
             if (is_string($value)) {
                 $value = explode_email($value);
-            } elseif (!is_array($value) || !$value) {
-                continue;
-            } else {
-                $value = [
-                    trim(strval($value[0])),
-                    trim(strval($value[1] ?? '')),
-                ];
-
-                if ($value[1] === '') {
-                    $value[1] = null;
-                }
             }
 
-            if ($value[0] === '' ||
-                !$rule->isValid($value[0])
-            ) {
+            $value = clean_email($value);
+
+            if ($value === null) {
                 continue;
             }
-
-            $value[0] = $rule->clean($value[0]);
 
             $result[] = $value;
         }
     } else {
         foreach ($emails as $email => $name) {
             if (is_int($email)) {
-                $value = [
-                    trim(strval($name)),
-                    null,
-                ];
+                $value = [$name, null];
             } else {
-                $value = [
-                    trim(strval($email)),
-                    trim(strval($name)),
-                ];
-
-                if ($value[1] === '') {
-                    $value[1] = null;
-                }
+                $value = [$email, $name];
             }
 
-            if ($value[0] === '' ||
-                !$rule->isValid($value[0])
-            ) {
+            $value = clean_email($value);
+
+            if ($value === null) {
                 continue;
             }
-
-            $value[0] = $rule->clean($value[0]);
 
             $result[] = $value;
         }

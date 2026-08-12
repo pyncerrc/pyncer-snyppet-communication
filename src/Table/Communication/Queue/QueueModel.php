@@ -46,20 +46,30 @@ class QueueModel extends AbstractModel
         return $this;
     }
 
-    public function getData(): ?string
+    public function getMessageData(): ?array
     {
-        return $this->get('data');
+        $value = $this->get('message_data');
+
+        if (is_string($value)) {
+            if (!json_validate($value)) {
+                $value = null;
+            } else {
+                $value = json_decode($value, true);
+            }
+        }
+
+        return $value;
     }
-    public function setData(?string $value): static
+    public function setMessageData(null|string|array $value): static
     {
-        $this->set('data', $this->nullify($value));
+        $this->set('message_data', $this->nullify($value));
         return $this;
     }
 
     public function getStatus(): QueueStatus
     {
         $value = $this->get('status');
-        return UserType::from($value);
+        return QueueStatus::from($value);
     }
     public function setStatus(string|QueueStatus $value): static
     {
@@ -119,8 +129,8 @@ class QueueModel extends AbstractModel
             'name' => null,
             'email' => null,
             'phone' => null,
-            'data' => null,
-            'status' => 'scheduled',
+            'message_data' => null,
+            'status' => 'queued',
             'attempts' => 0,
             'opened' => false,
             'unsubscribed' => false,
