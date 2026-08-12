@@ -16,7 +16,7 @@ trait CommunicationStatusTrait
     {
         $connection = $this->get(ID::DATABASE);
 
-        $mapper = new CommunicationMapper($connection;
+        $mapper = new CommunicationMapper($connection);
 
         $model = $mapper->selectByQuery(
             function(SelectQueryInterface $query) use($contentModel) {
