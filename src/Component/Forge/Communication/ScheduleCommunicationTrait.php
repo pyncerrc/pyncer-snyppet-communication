@@ -2,6 +2,7 @@
 namespace Pyncer\Snyppet\Communication\Component\Forge\Communication;
 
 use DateTimeInterface;
+use Pyncer\App\Identifier as ID;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
 use Pyncer\Snyppet\Communication\CommunicationType;
