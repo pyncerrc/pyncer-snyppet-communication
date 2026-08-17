@@ -8,6 +8,7 @@ use Pyncer\Snyppet\Communication\CommunicationStatus;
 use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationMapper;
 use Pyncer\Snyppet\Communication\Table\Communication\CommunicationModel;
+use Pyncer\Snyppet\SnyppetManager;
 
 use function Pyncer\Snyppet\Communication\is_valid_communication_content;
 
@@ -34,6 +35,23 @@ trait ScheduleCommunicationTrait
             'enabled' => true,
         ]);
 
-        return $communicationMapper->insert($communicationModel);
+        if (!$communicationMapper->insert($communicationModel)) {
+            return false;
+        }
+
+        if (SnyppetManager::getInstance()->has('organization') &&
+            $this->has(ID::organization())
+        ) {
+            $organizationModel = $this->get(ID::organization());
+
+            $connection->insert('communication__organization')
+                ->values([
+                    'communication_id' => $communicationModel->getId(),
+                    'organization_id' => $organizationModel->getId(),
+                ])
+                ->execute();
+        }
+
+        return true;
     }
 }
