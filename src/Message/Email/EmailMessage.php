@@ -340,21 +340,4 @@ class EmailMessage implements EmailMessageInterface
 
         return $message;
     }
-
-    protected static function isValidEmailContent(ContentModel $contentModel): bool
-    {
-        if ($contentModel->getType() !== 'email' &&
-            $contentModel->getType() !== 'communication'
-        ) {
-            return false;
-        }
-
-        if ($contentModel->getDeleted() ||
-            !$contentModel->getEnabled()
-        ) {
-            return false;
-        }
-
-        return true;
-    }
 }
