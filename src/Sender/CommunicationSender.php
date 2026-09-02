@@ -68,6 +68,9 @@ class CommunicationSender
                     $organizationId,
                 );
 
+                $emailData['communication_id'] = $communicationModel->getId();
+                $emailData['communication_uid'] = $communicationModel->getUid();
+
                 $emailMessage = $this->senderProvider->getMessage(
                     $contentModel,
                     CommunicationType::EMAIL,
@@ -129,6 +132,9 @@ class CommunicationSender
                     CommunicationType::SMS,
                     $organizationId,
                 );
+
+                $smsData['communication_id'] = $communicationModel->getId();
+                $smsData['communication_uid'] = $communicationModel->getUid();
 
                 $smsMessage = $this->senderProvider->getMessage(
                     $contentModel,

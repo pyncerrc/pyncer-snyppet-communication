@@ -3,6 +3,7 @@ namespace Pyncer\Snyppet\Communication\Component\Forge\Communication;
 
 use DateTimeInterface;
 use Pyncer\App\Identifier as ID;
+use Pyncer\Database\Exception\QueryException;
 use Pyncer\Snyppet\Content\Table\Content\ContentModel;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
 use Pyncer\Snyppet\Communication\CommunicationType;
@@ -35,9 +36,7 @@ trait ScheduleCommunicationTrait
             'enabled' => true,
         ]);
 
-        if (!$communicationMapper->insert($communicationModel)) {
-            return false;
-        }
+        $communicationMapper->insert($communicationModel);
 
         if (SnyppetManager::getInstance()->has('organization') &&
             $this->has(ID::organization())

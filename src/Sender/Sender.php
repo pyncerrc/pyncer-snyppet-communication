@@ -23,7 +23,7 @@ class Sender
     ): void
     {
         $data = [
-            $this->senderProvider->getData(
+            ...$this->senderProvider->getData(
                 CommunicationType::EMAIL,
                 $this->organizationId,
             ),
@@ -71,7 +71,7 @@ class Sender
     ): void
     {
         $data = [
-            $this->senderProvider->getData(
+            ...$this->senderProvider->getData(
                 CommunicationType::SMS,
                 $this->organizationId,
             ),

@@ -4,6 +4,7 @@ namespace Pyncer\Snyppet\Communication\Queue;
 use Exception;
 use Pyncer\Data\MapperQuery\FiltersQueryParam;
 use Pyncer\Database\ConnectionInterface;
+use Pyncer\Database\Exception\ResultException;
 use Pyncer\Snyppet\Communication\CommunicationStatus;
 use Pyncer\Snyppet\Communication\CommunicationType;
 use Pyncer\Snyppet\Communication\Exception\QueueException;
@@ -328,7 +329,9 @@ class Queue
         $model->setBccEmails($toBccEmails);
 
         $mapper = new GroupEmailMapper($this->connection);
-        return $mapper->insert($model);
+        $mapper->insert($model);
+
+        return true;
     }
 
     protected function insertQueue(
@@ -337,7 +340,7 @@ class Queue
         ?string $email,
         ?string $phone,
         ?int $contactProfileId = null,
-    ): bool
+    ): void
     {
         $model = new QueueModel();
         $model->setCommunicationId($communicationModel->getId());
@@ -346,20 +349,81 @@ class Queue
         $model->setPhone($phone);
 
         $mapper = new QueueMapper($this->connection);
-        if (!$mapper->insert($model)) {
-            return false;
+
+        $mapper->forgeInsertQuery($model)
+            ->ignore()
+            ->execute();
+
+        try {
+            $insertId = $this->connection->insertId();
+        } catch (ResultException) {
+            $insertId = 0;
         }
 
-        if ($contactProfileId !== null) {
+        if ($contactProfileId !== null && $insertId !== 0) {
             $this->connection->insert('communication__queue__contact_profile')
                 ->values([
-                    'communication_queue_id' => $model->getId(),
+                    'communication_queue_id' => $insertId,
                     'contact_profile_id' => $contactProfileId,
                 ])
                 ->execute();
         }
 
-        return true;
+        // Only one or the other so if ignored its fine.
+        if ($email === null or $phone === null) {
+            return;
+        }
+
+        // Try inserting just the email
+        $model->setPhone(null);
+
+        $mapper->forgeInsertQuery($model)
+            ->ignore()
+            ->execute();
+
+        try {
+            $insertId = $this->connection->insertId();
+        } catch (ResultException) {
+            $insertId = 0;
+        }
+
+        if ($insertId !== 0) {
+            if ($contactProfileId !== null) {
+                $this->connection->insert('communication__queue__contact_profile')
+                    ->values([
+                        'communication_queue_id' => $insertId,
+                        'contact_profile_id' => $contactProfileId,
+                    ])
+                    ->execute();
+            }
+
+            return;
+        }
+
+        // Finally try inserting just the phone
+        $model->setEmail(null);
+        $model->setPhone($phone);
+
+        $mapper->forgeInsertQuery($model)
+            ->ignore()
+            ->execute();
+
+        try {
+            $insertId = $this->connection->insertId();
+        } catch (ResultException) {
+            $insertId = 0;
+        }
+
+        if ($insertId !== 0) {
+            if ($contactProfileId !== null) {
+                $this->connection->insert('communication__queue__contact_profile')
+                    ->values([
+                        'communication_queue_id' => $insertId,
+                        'contact_profile_id' => $contactProfileId,
+                    ])
+                    ->execute();
+            }
+        }
     }
 
     protected function getContactEmails(int $contactId): array

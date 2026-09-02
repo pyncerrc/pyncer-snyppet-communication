@@ -54,6 +54,8 @@ class Install extends AbstractInstall
             ->bool('opened')->default(false)->index()
             ->bool('unsubscribed')->default(false)->index()
             ->bool('complained')->default(false)->index()
+            ->index('#unique', 'communication_id', 'email')->unique()
+            ->index('#unique', 'communication_id', 'phone')->unique()
             ->foreignKey(null, 'communication_id')
                 ->references('communication', 'id')
                 ->deleteAction(ReferentialAction::CASCADE)

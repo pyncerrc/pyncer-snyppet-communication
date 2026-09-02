@@ -52,7 +52,8 @@ trait CancelCommunicationTrait
                 ])
                 ->execute();
 
-            return $mapper->update($model);
+            $mapper->update($model);
+            return true;
         }
 
         return false;
