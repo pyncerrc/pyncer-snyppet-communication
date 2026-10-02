@@ -30,7 +30,7 @@ class Install extends AbstractInstall
 
         $this->connection->createTable('communication__group_email')
             ->serial('id')
-            ->int('communication_id', IntSize::BIG)->null()->index()
+            ->int('communication_id', IntSize::BIG)->index()
             ->text('emails', TextSize::MEDIUM)
             ->text('cc_emails', TextSize::MEDIUM)->null()
             ->text('bcc_emails', TextSize::MEDIUM)->null()
@@ -44,7 +44,7 @@ class Install extends AbstractInstall
 
         $this->connection->createTable('communication__queue')
             ->serial('id')
-            ->int('communication_id', IntSize::BIG)->null()->index()
+            ->int('communication_id', IntSize::BIG)->index()
             ->string('name', 50)->null()->index()
             ->string('email', 125)->null()->index()
             ->string('phone', 25)->null()->index()

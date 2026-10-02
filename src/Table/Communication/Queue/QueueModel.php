@@ -6,13 +6,13 @@ use Pyncer\Snyppet\Communication\Queue\QueueStatus;
 
 class QueueModel extends AbstractModel
 {
-    public function getCommunicationId(): ?int
+    public function getCommunicationId(): int
     {
         return $this->get('communication_id');
     }
-    public function setCommunicationId(?int $value): static
+    public function setCommunicationId(int $value): static
     {
-        $this->set('communication_id', $this->nullify($value));
+        $this->set('communication_id', $value);
         return $this;
     }
 

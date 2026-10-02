@@ -30,6 +30,7 @@ class CommunicationValidator extends AbstractValidator
 
         $this->addRules(
             'content_id',
+            new RequiredRule(IntRule::EMPTY),
             new IntRule(
                 minValue: 0,
             ),

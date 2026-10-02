@@ -77,9 +77,6 @@ class CommunicationMapperQuery extends AbstractRequestMapperQuery
                     'Coalesce'
                 )->arguments('update_date_time', 'insert_date_time');
                 return [$function, $direction];
-            case 'random':
-                $connection = $query->getDatabase();
-                return ['@', $connection->functions($query->getTable(), 'Rand'), $direction];
         }
 
         return parent::getOrderByColumn($query, $key, $direction);

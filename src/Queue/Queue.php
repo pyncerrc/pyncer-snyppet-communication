@@ -96,7 +96,7 @@ class Queue
             );
         }
 
-        $contentDataManager = new ContentValueManager($this->connection, $contentModel->getId());
+        $contentDataManager = new ContentDataManager($this->connection, $contentModel->getId());
 
         $contentValueManager = new ContentValueManager($this->connection, $contentModel->getId());
         $contentValueManager->load(
@@ -279,7 +279,7 @@ class Queue
         ContentModel $contentModel,
     ): bool
     {
-        $contentDataManager = new ContentValueManager(
+        $contentDataManager = new ContentDataManager(
             $this->connection,
             $contentModel->getId()
         );
