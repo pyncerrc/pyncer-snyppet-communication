@@ -92,7 +92,7 @@ class CommunicationModel extends AbstractModel
             $value = $value->value;
         }
 
-        $this->set('type', $value);
+        $this->set('type', $this->nullify($value));
         return $this;
     }
 
